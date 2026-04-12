@@ -1,19 +1,228 @@
 \chapter{Methodology}
-\label{chap: 3}
+\label{chap: Methodology}
 
-This section discusses the relevant methodology that was used during this research. The software that was used will be addressed. 
+This chapter describes the full methodology used to develop and evaluate a machine-learning-based acceleration framework for CFD simulations. The approach combines a convolutional autoencoder (AE) with a neural ordinary differential equation (Neural ODE) to learn and evolve low-dimensional representations of turbulent flow fields, enabling significant speed-ups over conventional time integration.
 
+% -----------------------------------------------------------------------
+\section{Overall Pipeline}
+\label{sect: 3.1pipeline}
 
-\section{Simulation Setup}
-% \subsection{WaterLily}
-% \subsection{Sim }
+% Provide a high-level description of the encode → integrate → decode workflow.
+% Include a single flowchart/figure linking: CFD solver → AE encoder → latent space → Neural ODE → AE decoder → accelerated prediction.
+% Justify the two-stage training design (separate AE and NODE training).
 
+% -----------------------------------------------------------------------
+\section{CFD Simulation Setup}
+\label{sect: 3.2simsetup}
 
+% Describe the simulations used to produce training data.
+
+\subsection{Physical Setup}
+\label{sect: 3.2.1physics}
+
+% Geometry (cylinder), Reynolds numbers tested, boundary conditions, domain size.
+% Explain the role of the base-flow channel μ₀ as a parameter channel.
+
+\subsection{Numerical Solver}
+\label{sect: 3.2.2solver}
+
+% WaterLily solver, CFL-based adaptive time-stepping, ghost cell handling (clip_bc), simulation length and sampling frequency.
+
+\subsection{Dataset Construction}
+\label{sect: 3.2.3dataset}
+
+% Structure of SimData (fields: u, p, f, μ₀, force, time, Δt, period ranges).
+% Training/test split strategy and downsampling method.
+
+% -----------------------------------------------------------------------
+\section{Data Preprocessing}
+\label{sect: 3.3preprocessing}
+
+% Describe all preprocessing steps from raw CFD snapshots to model-ready tensors.
+
+\subsection{Ghost Cell Removal}
+\label{sect: 3.3.1ghostcells}
+
+% Explain why boundary artefacts (ghost cells from WaterLily) are clipped before encoding.
+
+\subsection{Channel Construction}
+\label{sect: 3.3.2channels}
+
+% How the 4-channel input tensor (2 velocity channels + 2 μ₀ channels) is assembled.
+% What the model reconstructs (2-channel velocity output).
+
+\subsection{Normalization}
+\label{sect: 3.3.3normalization}
+
+% Per-channel z-score normalization scheme.
+% Where statistics are computed, how the Normalizer is stored, and how the inverse transform is applied at decode time.
+
+% -----------------------------------------------------------------------
 \section{Autoencoder}
+\label{sect: 3.4AE}
+
+% Encoding 256×256×4 flow fields to a 16-dimensional latent space.
+
 \subsection{Architecture}
+\label{sect: 3.4.1AEarch}
 
+% Convolutional encoder: n_conv=6 layers, C_base=8 starting channels, pool_kernel=2 (halving spatial resolution each layer).
+% Dense bottleneck: n_dense=2 layers, latent_dim=16.
+% Symmetric decoder mirrors the encoder.
+% Include a table or diagram of layer sizes and parameter counts.
 
-\subsection{Training}
+\subsection{Loss Function}
+\label{sect: 3.4.2AEloss}
 
+% Reconstruction loss: L1 / L2 / Charbonnier (configurable via :loss symbol).
+% Physics regularizers: divergence loss (λ_div = 1000), curl loss (λ_curl = 100), strain loss (λ_strain).
+% Justify the relative weighting of each term.
 
+\subsection{Training Setup}
+\label{sect: 3.4.3AEtraining}
+
+% Optimizer: Adam, η = 1e-3, weight decay λ = 9e-4.
+% Batch size: 16; epochs: 1000; validation split: 20\%.
+% Hardware: GPU (CUDA); precision: Float32.
+% Checkpointing and early stopping strategy.
+
+\subsection{Validation}
+\label{sect: 3.4.4AEvalidation}
+
+% Reconstruction error on held-out snapshots.
+% Visual comparison of original vs.\ reconstructed flow fields.
+% Divergence and curl residuals of reconstructed fields.
+% Validate against published AE results in the literature.
+
+% -----------------------------------------------------------------------
 \section{Neural ODE}
+\label{sect: 3.5NODE}
+
+% Learning latent-space dynamics operating entirely on AE-encoded trajectories.
+
+\subsection{Architecture}
+\label{sect: 3.5.1NODEarch}
+
+% ODE function: fully-connected network latent_dim → (dense_mult × latent_dim) → latent_dim.
+% dense_mult = 3, activation = tanhshrink.
+% Justify depth, width, and activation function choice.
+
+\subsection{ODE Solver}
+\label{sect: 3.5.2solver}
+
+% Tsit5 adaptive solver; reltol = 1e-4, abstol = 1e-6.
+% Justify choice of adaptive solver for stiff-free latent dynamics.
+
+\subsection{Training with Multiple Shooting}
+\label{sect: 3.5.3NODEtraining}
+
+% Multiple shooting: group_size = 20, continuity_term = 200.
+% Optimizer: AdamW, η = 0.01; maxiters = 250.
+% Explain why multiple shooting mitigates gradient vanishing in long-horizon trajectories.
+% Extrapolation flag and its role.
+
+\subsection{Validation}
+\label{sect: 3.5.4NODEvalidation}
+
+% Short- and long-horizon rollout error on held-out latent trajectories.
+% Comparison against trivial baselines (e.g., last-state extrapolation, linear interpolation).
+% Validate latent trajectory quality against AE-encoded ground truth.
+
+% -----------------------------------------------------------------------
+\section{Out-of-Distribution Detection}
+\label{sect: 3.6OOD}
+
+% Flagging latent states that fall outside the training manifold.
+
+\subsection{KNN-Based OOD Scoring}
+\label{sect: 3.6.1KNN}
+
+% KNN detector fitted on training latent vectors; distance threshold set at quantile q = 0.99 (k = 5 neighbours).
+% How the score is computed at inference time and what triggers an OOD flag.
+
+\subsection{Fallback Strategy}
+\label{sect: 3.6.2fallback}
+
+% When an OOD flag is raised, control is handed back to the conventional CFD solver.
+% Discuss the trade-off between acceleration and safety.
+
+% -----------------------------------------------------------------------
+\section{Integrated Acceleration Workflow}
+\label{sect: 3.7workflow}
+
+% Putting the trained components together as a drop-in CFD accelerator.
+
+\subsection{Fixed-Horizon Prediction}
+\label{sect: 3.7.1fixedhorizon}
+
+% \texttt{predict\_n}: encode current field → NODE integrate $n_t$ steps → decode → insert into solver.
+% Describe the non-dimensionalization of the time axis (division by characteristic length = 32).
+
+\subsection{Flexible-Horizon Prediction}
+\label{sect: 3.7.2flexhorizon}
+
+% \texttt{predict\_flex}: OOD-gated variant that decides how many steps to skip adaptively based on the OOD score.
+
+\subsection{Coupling with the CFD Solver}
+\label{sect: 3.7.3coupling}
+
+% How predictions are inserted back into the simulation: velocity field update, pressure reset, CFL-based Δt update.
+% Optional Biot boundary condition imposition after insertion.
+
+% -----------------------------------------------------------------------
+\section{Evaluation Design}
+\label{sect: 3.8evaluation}
+
+% Define all experiments to ensure results in \autoref{chap: 4} are unambiguous and reproducible.
+
+\subsection{Accuracy Metrics}
+\label{sect: 3.8.1accuracy}
+
+% Field-level: mean absolute error, RMSE on velocity components.
+% Trajectory: rollout divergence over time, phase drift.
+% Physics consistency: divergence-free residual, force coefficient comparison.
+
+\subsection{Speedup Metrics}
+\label{sect: 3.8.2speedup}
+
+% Wall-clock time per simulation step (GPU vs.\ CPU).
+% Number of CFD solver calls replaced per unit simulation time.
+% Total throughput comparison.
+
+\subsection{Generalization Tests}
+\label{sect: 3.8.3generalization}
+
+% Performance on Reynolds numbers and/or geometries not seen during training.
+% Describe which cases are in-distribution and which are out-of-distribution.
+
+\subsection{Ablation Studies}
+\label{sect: 3.8.4ablation}
+
+% Effect of latent dimension on reconstruction quality and rollout accuracy.
+% Sensitivity to physics loss weights (λ_div, λ_curl).
+% Impact of NODE architecture depth and multiple-shooting group size.
+
+% -----------------------------------------------------------------------
+\section{Implementation Details}
+\label{sect: 3.9implementation}
+
+% Sufficient detail for full reproducibility.
+
+\subsection{Software Stack}
+\label{sect: 3.9.1software}
+
+% Julia, Lux (neural networks), OrdinaryDiffEq + DiffEqFlux (Neural ODE), Zygote (AD), JLD2 (checkpointing), CUDA/cuDNN (GPU).
+% Key package versions listed.
+
+\subsection{Hardware and HPC Configuration}
+\label{sect: 3.9.2hardware}
+
+% GPU hardware used for training; SLURM batch scripts for HPC runs.
+% Numerical precision: Float32 for all tensors; Float64 for ODE solver tolerances only.
+
+\subsection{Reproducibility}
+\label{sect: 3.9.3reproducibility}
+
+% Random seed fixed at 42 throughout.
+% Checkpoint strategy: best validation loss saved; retrain flag for resuming.
+% Data versioning and path conventions.

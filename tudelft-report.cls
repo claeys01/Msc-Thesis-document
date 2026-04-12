@@ -80,6 +80,7 @@
 
     \newcommand{\titlestyle}{\fontfamily{RobotoSlab-TLF}\fontseries{light}\selectfont}
     \newcommand{\largetitlestyle}{\fontfamily{RobotoSlab-TLF}\fontseries{thin}\selectfont}
+    \newcommand{\boldtitlestyle}{\fontfamily{RobotoSlab-TLF}\fontseries{bold}\selectfont}
 \else
     %% If XeLaTeX or LuaLaTeX is set as the compiler, the TU Delft house style fonts are used (see https://www.tudelft.nl/huisstijl/bouwstenen/typografie).
     \RequirePackage[no-math]{fontspec} % Advanced font selection
