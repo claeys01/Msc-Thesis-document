@@ -1,0 +1,40 @@
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.xdv
+
+# BibLaTeX / glossaries / indices
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.ist
+*.idx
+*.ilg
+*.ind
+
+# Beamer and other TeX auxiliaries
+*.nav
+*.snm
+*.vrb
+
+# Latexmk temporary directories
+_minted-*
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
