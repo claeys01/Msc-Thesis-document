@@ -1,70 +1,186 @@
 \chapter{Methodology}
 \label{chap: Methodology}
 
-This chapter describes the full methodology used to develop and evaluate a machine-learning-based acceleration framework for CFD simulations. The approach combines a convolutional autoencoder (AE) with a neural ordinary differential equation (Neural ODE) to learn and evolve low-dimensional representations of turbulent flow fields, enabling significant speed-ups over conventional time integration.
+This chapter describes the full methodology used to develop and evaluate the machine-learning-based acceleration framework for accelerating CFD simulations. The approach combines a convolutional autoencoder (AE), a Neural Ordinary Differential Equation (NODE) and a KNN integration monitor to learn and evolve low-dimensional representations of turbulent flow fields. This chapter will begin with highlighting the simulation setup used to develop the framework, where it will explain the numerical solver, boundary conditions and simulation dimensions. Following this the AE, NODE and KNN integration monitor will be explained together with their design choices.
 
 % -----------------------------------------------------------------------
-\section{Overall Pipeline}
-\label{sect: 3.1pipeline}
+\section{Proposed framework}
+\label{sect: proposed framework}
 
-% Provide a high-level description of the encode → integrate → decode workflow.
-% Include a single flowchart/figure linking: CFD solver → AE encoder → latent space → Neural ODE → AE decoder → accelerated prediction.
-% Justify the two-stage training design (separate AE and NODE training).
+\todo{show drawing of AENODE architecture}
+% give a global overlook of the framework that i developped AE, node, knn ood, and waterlily
+
 
 % -----------------------------------------------------------------------
-\section{CFD Simulation Setup}
-\label{sect: 3.2simsetup}
+\section{Test setup}
 
-% Describe the simulations used to produce training data.
-
-\subsection{Physical Setup}
-\label{sect: 3.2.1physics}
-
-% Geometry (cylinder), Reynolds numbers tested, boundary conditions, domain size.
-% Explain the role of the base-flow channel μ₀ as a parameter channel.
+WaterLily was used as the foundational numerical framework for this work. WaterLily is an open-source, incompressible viscous flow solver written entirely in the Julia programming language. \todo{bron voor julia en WaterLily toevoegen} It is completely backend agnostic, meaning that it supports serial and multithreaded CPU operation, as well as GPUs of different vendors. Furthermore, because WaterLily is implemented purely in Julia, the solver is fully differentiable via automatic differentiation. Because of WaterLily's backend-agnostic, differentiable architecture, it is well-positioned to integrate optimisation and machine learning frameworks.
 
 \subsection{Numerical Solver}
-\label{sect: 3.2.2solver}
 
-% WaterLily solver, CFL-based adaptive time-stepping, ghost cell handling (clip_bc), simulation length and sampling frequency.
+The incompressible Navier-Stokes equations \ref{eq: navier-stokes} are discretised in non-dimensional form in a finite-volume manner on a uniform Cartesian grid with staggered velocity-pressure variable placement. WaterLily employs the Boundary Data Immersion Method (BDIM) to handle immersed bodies on the uniform Cartesian grid \todo{BDIM citations}. Rather than generating a body-conforming mesh, BDIM smoothly couples the governing equations of the fluid and solid domains into a single equation that can be applied over the entire computational domain. To summarise this approach, the incompressible NSE, as introduced in  \ref{eq: momentum}, is defined over the fluid domain $\Omega_{f}$
+
+\begin{equation}\label{eq: WaterLilyMomentum}
+    \dot{\mathcal{F}}: \quad \frac{\partial u_i}{\partial t} = -\frac{\partial p}{\partial x_i} - u_j \frac{\partial u_i}{\partial x_j} + \nu \frac{\partial^2 u_i}{\partial x_j \partial x_j} \qquad \forall\, i,j \in 1\ldots n
+\end{equation}
+
+while a prescribed body velocity is enforced over the solid domain $\Omega_b$:
+
+\begin{equation}\label{eq: WaterLilyBodyVelocity}
+    \mathcal{B}: \quad u_i = V_i \qquad \forall\, i \in 1\ldots n
+\end{equation}
+
+where $u_i$ are the velocity components, $p$ is the pressure scaled by the fluid density, $\nu$ is the kinematic viscosity, $V_i$ is the body velocity and $n$ denotes the dimensions of the simulation. BDIM combines these two sets of equations by applying a convolution with a smoothing kernel $\epsilon$, to produce a combined meta-equation: 
+
+\begin{equation}\label{eq: WaterLilyVelocity}
+    u_{\epsilon, i} = \mu_0^\epsilon \, f_i + \left(1 - \mu_0^\epsilon\right) b_i 
++ \mu_1^\epsilon \, \frac{\partial}{\partial x_n}\!\left(f_i - b_i\right)
+\end{equation}
+
+Here, $f_i$ and $b_i$ represent the time-integrated fluid and body equations, respectively, and $x_n$ denotes the surface normal direction. The key quantities to note are $\mu^{\epsilon}_0$ and $\mu^{\epsilon}_1$, which are the zeroth and the first order moments of the one-dimensional immersion kernel. These are both functions of the signed distance $d$ from a given point in the computational domain $\Omega$ to the nearest body surface. The signed distance is defined as positive in the fluid ($d > 0$) and negative inside the body ($d < 0$). In particular, $\mu^{\epsilon}_0$ acts as a smooth interpolation function: it equals 1 in the fluid region (for $d \geq \epsilon$), 0 inside the body (for $d \leq \epsilon$), and creates a smooth transition on the boundary region of the body $|d| < \epsilon$. The first moment $\mu^{\epsilon}_1$ is only nonzero in this boundary region and was put in place to improve accuracy in the presence of large discontinuities in velocity gradients at the boundary, ensuring second-order convergence of the method \todo{references}
+
+Time integration is performed using an explicit predictor-corrector scheme, with incompressibility enforced via a pressure-projection step at each substep. Incompressibility is enforced by solving the Pressure-Poisson equation using geometric multigrid to accelerate solver convergence. The governing time step is automatically adjusted to maintain a stable Courant-Friedrichs-Lewy (CFL) number. No explicit subgrid-scale model is employed; instead, WaterLily operates as an implicit Large Eddy Simulation (iLES) solver, where the numerical dissipation from the flux-limited convection scheme acts as the effective SGS model. \todo{Margolin et al reference}
+
+The smoothed velocity field $u_{\epsilon, i}$ is stored as a multi-dimensional array $\mathbf{u}$ of dimensions $(N_1+2) \times (N_2+2) \times n$, where $N_1$ and $N_2$ are the number of interior grid points in each spatial direction, the additional two cells per dimension are concatenated on the extremities of the computational domain and are used as ghost cells to impose boundary conditions. 
+
+For the ML framework developed in this work, two fields from the WaterLily simulation are of central importance: the velocity field $\mathbf{u}$ and the zeroth kernel moment $\boldsymbol{\mu_0}$. Where $\mathbf{u}$ represents the full flow state that the AE compresses into a low-dimensional latent representation, which will then be integrated in time by the Neural ODE. The zeroth order kernel moment $\boldsymbol{\mu_0}$ encodes the geometry of the immersed body at each grid point: it is unity in $\Omega_f$, zero in $\Omega_b$ and varies smoothly over the boundary. The purpose of passing $\boldsymbol{\mu_0}$ as an additional input to the model is to enable the model to learn the no-slip boundary condition and maintain physical consistency near the immersed surface. This way, the network receives explicit information about the body at a given flow state $\mathbf{u}$. In practice, both fields are extracted from the simulation at each saved timestep as a pair ($\mathbf{u}$, $\boldsymbol{\mu_0}$) and stored together for training and inference. 
+
+
+\subsection{Physical Setup}
+As mentioned before, WaterLily solves the incompressible NSE on a uniform Cartesian grid with a unit cell spacing $h=1$. The simulation operates in a non-dimensional fashion, where all geometric dimensions are non-dimensionalised through two reference scales: the characteristic length $L$, expressed as a number of grid cells, and a characteristic velocity $U$, derived from the imposed inflow velocity. These input parameters, together with the Reynolds number, can then be used to to define the kinematic viscosity: $\nu=\nicefrac{UL}{Re}$, and the convective time units: $t^*=\nicefrac{tU}{L}$. Next to these parameters, all spatial quantities in the solver are expressed in grid cells, and all velocities relative to $U$. Which means that the numerical solver carries no inherent physical units. 
+
+
+The test case used to validate the model described in Section~\ref{sect: proposed framework} consists of a two-dimensional flow past a stationary circular cylinder, which induces vortex shedding in its wake. The simulation consists of a square domain with the cylinder placed in the upstream quarter, where the cylinder geometry is defined by the signed distance function and enforced via the BDIM. The simulation parameters are summarised in Table~\ref{tab: parameters} and the domain is illustrated in in Figure~\ref{fig: domain_setup}.
+
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}[t]{0.45\textwidth}
+        \centering
+        \begin{tikzpicture}
+        % --- Parameters ---
+        \pgfmathsetmacro{\Lx}{6}
+        \pgfmathsetmacro{\Ly}{6}
+        \pgfmathsetmacro{\cx}{1.5}
+        \pgfmathsetmacro{\cy}{3}
+        \pgfmathsetmacro{\cr}{0.375}
+        % --- Main shapes ---
+        \draw (0,0) rectangle (\Lx,\Ly);
+        \draw (\cx,\cy) circle (\cr);
+        % --- Dimension arrows for the square ---
+        \draw[<->] (0,-0.4) -- (\Lx,-0.4);
+        \node at (\Lx/2,-0.7) {$L_x$};
+        \draw[<->] (\Lx+0.4,0) -- (\Lx+0.4,\Ly);
+        \node at (\Lx+0.8,\Ly/2) {$L_y$};
+        % --- Circle position arrows ---
+        \draw[<->, dashed] (0,\cy) -- (\cx-0.005,\cy);
+        \node at (\cx/2, \cy+0.3) {$x_c$};
+        \draw[<->, dashed] (\cx,0) -- (\cx,\cy-0.005);
+        \node at (\cx+0.4, \cy/2) {$y_c$};
+        % --- Circle diameter arrow ---
+        \draw[<->, dashed] (\cx+0.55,\cy-\cr) -- (\cx+0.55,\cy+\cr);
+        \node at (\cx+0.9, \cy) {$d_c$};
+
+        % --- Inflow arrows ---
+        % \foreach \y in {1.5, 3, 4.5} {
+        \foreach \y in {0.1, 1, 2, 3, 4, 5, 5.9} {
+            \draw[->] (-0.5, \y) -- (-0.1, \y);
+        }
+        \node at (-0.75, \Ly-0.5) {$U_\infty$};
+        
+        \end{tikzpicture}
+        \caption{Domain layout.}
+        \label{fig: domain_setup}
+    \end{minipage}
+    \hfill
+    \begin{minipage}[t]{0.45\textwidth}
+        \centering
+        \vspace{-5cm} % vertically centre the table relative to the figure
+        \begin{tabular}{lll}
+            \hline
+            \textbf{Parameter} & \textbf{Symbol} & \textbf{Value} \\
+            \hline
+            Domain width       & $L_x$ & 256                        \\
+            Domain height      & $L_y$ & 256                        \\
+            Cylinder center x  & $x_c$ & $\nicefrac{L_x}{4}$       \\
+            Cylinder center y  & $y_c$ & $\nicefrac{L_y}{2}$       \\
+            Cylinder diameter  & $d_c$ & $\nicefrac{L_x}{16}$      \\
+            Reynolds Number    & $Re$  & $2500$                     \\
+            Free stream velocity & $U_\infty$ & $(1, 0)$            \\
+            \hline
+        \end{tabular}
+        \captionof{table}{Simulation parameters.}
+        \label{tab: parameters}
+    \end{minipage}
+\end{figure}
+
+A uniform free-stream velocity is imposed at the inflow, which acts as the characteristic velocity such that: $U = U_\infty$ and the cylinder diameter serves as the characteristic length scale, such that $L=d_c$. The domain uses the Biot-Savart boundary conditions \todo{ref toevoegen over biot savart}, which replace the regular slip boundary conditions by a Biot-Savart integral over the vorticity inside the domain to determine the velocity at any point along the domain boundary. This allows the domain to be kept compact and square without introducing significant blockage effects. 
+
+
+Since the primary objective of this work is to develop a framework that can capture, reconstruct and accelerate the underlying flow dynamics of any turbulent CFD simulation, rather than a specific experiment or flow case, no effort is made to match the simulation parameters to any real physical system. The simulation parameters were set to infer a desired shedding behaviour, which can be used to test the capabilities of the developed framework. \todo{mss op een andere plek plaatsen}
+
+A Reynolds number of $Re=2500$ is selected for the validation simulation. At this Reynolds number, the flow exhibits well-defined periodic vortex shedding, characterised by the alternating release of counter-rotating vortices that form the well-recognisable Kármán vortex street. Additionally, the flow produces various ranges of temporal and spatial scales beyond the primary shedding frequency, which can be seen in the secondary vortex structures in the wake snapshots in \autoref{fig: vortex_shedding}.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.32\textwidth}
+        \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/shedding_t1.5.png}
+        \caption{$t^*_{n}$}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.32\textwidth}
+        \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/shedding_t2.5.png}
+        \caption{$t^*_{n+\Delta t}$}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.32\textwidth}
+        \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/shedding_t3.5.png}
+        \caption{$t^*_{n+ 2\Delta t}$}
+    \end{subfigure}
+    \caption{Vorticity field $\nicefrac{\omega L}{U}$ of three consecutive snapshots. Indicating positive (red) and negative (blue) vorticity. Showing the primary (large) and secondary (small) vortex structures in the wake}
+    \label{fig: vortex_shedding}
+\end{figure}
+\todo{mss hele simulatie in appendix plaatsen}
+
+This makes $Re=2500$ an interesting test case for the surrogate model: the dominant shedding period provides a clear, learnable periodic structure, while the secondary flow features introduce complexity and nonlinearity. This challenges the data-driven approach and motivates the inclusion of physics-informed regularisation and transfer learning capabilities in the framework. Where a lower Reynolds number would produce various length and time scales in the wake, preventing the model from properly testing its ability to capture multi-scale dynamics. While higher Reynolds numbers would introduce a broader spectrum of turbulent scales and further challenge the surrogate model, $Re=2500$ represents a practical upper bound given the computational constraints of this work. Increasing the Reynolds number requires a finer spatial resolution to properly resolve all relevant turbulent structures, which would rapidly increase the memory footprint and simulation wall-time. The full flow field snapshots used to train the ML framework already consume a significant portion of available memory; a further increase in resolution would exceed the practical hardware limitations of the systems used. The chosen Reynolds number, therefore, strikes a balance between flow complexity and computational practicality. 
+
 
 \subsection{Dataset Construction}
-\label{sect: 3.2.3dataset}
 
 % Structure of SimData (fields: u, p, f, μ₀, force, time, Δt, period ranges).
 % Training/test split strategy and downsampling method.
 
 % -----------------------------------------------------------------------
 \section{Data Preprocessing}
-\label{sect: 3.3preprocessing}
+\label{sect: preprocessing}
 
 % Describe all preprocessing steps from raw CFD snapshots to model-ready tensors.
 
 \subsection{Ghost Cell Removal}
-\label{sect: 3.3.1ghostcells}
+\label{sect: ghostcells}
 
 % Explain why boundary artefacts (ghost cells from WaterLily) are clipped before encoding.
 
 \subsection{Channel Construction}
-\label{sect: 3.3.2channels}
+\label{sect: channels}
 
 % How the 4-channel input tensor (2 velocity channels + 2 μ₀ channels) is assembled.
 % What the model reconstructs (2-channel velocity output).
 
 \subsection{Normalization}
-\label{sect: 3.3.3normalization}
+\label{sect: normalization}
 
 % Per-channel z-score normalization scheme.
 % Where statistics are computed, how the Normalizer is stored, and how the inverse transform is applied at decode time.
 
 % -----------------------------------------------------------------------
 \section{Autoencoder}
-\label{sect: 3.4AE}
+\label{sect: AE}
 
 % Encoding 256×256×4 flow fields to a 16-dimensional latent space.
 
 \subsection{Architecture}
-\label{sect: 3.4.1AEarch}
+\label{sect: AEarch}
 
 % Convolutional encoder: n_conv=6 layers, C_base=8 starting channels, pool_kernel=2 (halving spatial resolution each layer).
 % Dense bottleneck: n_dense=2 layers, latent_dim=16.
@@ -72,14 +188,14 @@ This chapter describes the full methodology used to develop and evaluate a machi
 % Include a table or diagram of layer sizes and parameter counts.
 
 \subsection{Loss Function}
-\label{sect: 3.4.2AEloss}
+\label{sect: AEloss}
 
 % Reconstruction loss: L1 / L2 / Charbonnier (configurable via :loss symbol).
 % Physics regularizers: divergence loss (λ_div = 1000), curl loss (λ_curl = 100), strain loss (λ_strain).
 % Justify the relative weighting of each term.
 
 \subsection{Training Setup}
-\label{sect: 3.4.3AEtraining}
+\label{sect: AEtraining}
 
 % Optimizer: Adam, η = 1e-3, weight decay λ = 9e-4.
 % Batch size: 16; epochs: 1000; validation split: 20\%.
@@ -87,7 +203,7 @@ This chapter describes the full methodology used to develop and evaluate a machi
 % Checkpointing and early stopping strategy.
 
 \subsection{Validation}
-\label{sect: 3.4.4AEvalidation}
+\label{sect: AEvalidation}
 
 % Reconstruction error on held-out snapshots.
 % Visual comparison of original vs.\ reconstructed flow fields.
@@ -96,25 +212,25 @@ This chapter describes the full methodology used to develop and evaluate a machi
 
 % -----------------------------------------------------------------------
 \section{Neural ODE}
-\label{sect: 3.5NODE}
+\label{sect: NODE}
 
 % Learning latent-space dynamics operating entirely on AE-encoded trajectories.
 
 \subsection{Architecture}
-\label{sect: 3.5.1NODEarch}
+\label{sect: NODEarch}
 
 % ODE function: fully-connected network latent_dim → (dense_mult × latent_dim) → latent_dim.
 % dense_mult = 3, activation = tanhshrink.
 % Justify depth, width, and activation function choice.
 
 \subsection{ODE Solver}
-\label{sect: 3.5.2solver}
+\label{sect: solver}
 
 % Tsit5 adaptive solver; reltol = 1e-4, abstol = 1e-6.
 % Justify choice of adaptive solver for stiff-free latent dynamics.
 
 \subsection{Training with Multiple Shooting}
-\label{sect: 3.5.3NODEtraining}
+\label{sect: NODEtraining}
 
 % Multiple shooting: group_size = 20, continuity_term = 200.
 % Optimizer: AdamW, η = 0.01; maxiters = 250.
@@ -122,7 +238,7 @@ This chapter describes the full methodology used to develop and evaluate a machi
 % Extrapolation flag and its role.
 
 \subsection{Validation}
-\label{sect: 3.5.4NODEvalidation}
+\label{sect: NODEvalidation}
 
 % Short- and long-horizon rollout error on held-out latent trajectories.
 % Comparison against trivial baselines (e.g., last-state extrapolation, linear interpolation).
@@ -135,68 +251,68 @@ This chapter describes the full methodology used to develop and evaluate a machi
 % Flagging latent states that fall outside the training manifold.
 
 \subsection{KNN-Based OOD Scoring}
-\label{sect: 3.6.1KNN}
+\label{sect: KNN}
 
 % KNN detector fitted on training latent vectors; distance threshold set at quantile q = 0.99 (k = 5 neighbours).
 % How the score is computed at inference time and what triggers an OOD flag.
 
 \subsection{Fallback Strategy}
-\label{sect: 3.6.2fallback}
+\label{sect: fallback}
 
 % When an OOD flag is raised, control is handed back to the conventional CFD solver.
 % Discuss the trade-off between acceleration and safety.
 
 % -----------------------------------------------------------------------
 \section{Integrated Acceleration Workflow}
-\label{sect: 3.7workflow}
+\label{sect: workflow}
 
 % Putting the trained components together as a drop-in CFD accelerator.
 
 \subsection{Fixed-Horizon Prediction}
-\label{sect: 3.7.1fixedhorizon}
+\label{sect: fixedhorizon}
 
 % \texttt{predict\_n}: encode current field → NODE integrate $n_t$ steps → decode → insert into solver.
 % Describe the non-dimensionalization of the time axis (division by characteristic length = 32).
 
 \subsection{Flexible-Horizon Prediction}
-\label{sect: 3.7.2flexhorizon}
+\label{sect: flexhorizon}
 
 % \texttt{predict\_flex}: OOD-gated variant that decides how many steps to skip adaptively based on the OOD score.
 
 \subsection{Coupling with the CFD Solver}
-\label{sect: 3.7.3coupling}
+\label{sect: coupling}
 
 % How predictions are inserted back into the simulation: velocity field update, pressure reset, CFL-based Δt update.
 % Optional Biot boundary condition imposition after insertion.
 
 % -----------------------------------------------------------------------
 \section{Evaluation Design}
-\label{sect: 3.8evaluation}
+\label{sect: evaluation}
 
 % Define all experiments to ensure results in \autoref{chap: 4} are unambiguous and reproducible.
 
 \subsection{Accuracy Metrics}
-\label{sect: 3.8.1accuracy}
+\label{sect: accuracy}
 
 % Field-level: mean absolute error, RMSE on velocity components.
 % Trajectory: rollout divergence over time, phase drift.
 % Physics consistency: divergence-free residual, force coefficient comparison.
 
 \subsection{Speedup Metrics}
-\label{sect: 3.8.2speedup}
+\label{sect: speedup}
 
 % Wall-clock time per simulation step (GPU vs.\ CPU).
 % Number of CFD solver calls replaced per unit simulation time.
 % Total throughput comparison.
 
 \subsection{Generalization Tests}
-\label{sect: 3.8.3generalization}
+\label{sect: generalization}
 
 % Performance on Reynolds numbers and/or geometries not seen during training.
 % Describe which cases are in-distribution and which are out-of-distribution.
 
 \subsection{Ablation Studies}
-\label{sect: 3.8.4ablation}
+\label{sect: ablation}
 
 % Effect of latent dimension on reconstruction quality and rollout accuracy.
 % Sensitivity to physics loss weights (λ_div, λ_curl).
@@ -204,24 +320,24 @@ This chapter describes the full methodology used to develop and evaluate a machi
 
 % -----------------------------------------------------------------------
 \section{Implementation Details}
-\label{sect: 3.9implementation}
+\label{sect: implementation}
 
 % Sufficient detail for full reproducibility.
 
 \subsection{Software Stack}
-\label{sect: 3.9.1software}
+\label{sect: software}
 
 % Julia, Lux (neural networks), OrdinaryDiffEq + DiffEqFlux (Neural ODE), Zygote (AD), JLD2 (checkpointing), CUDA/cuDNN (GPU).
 % Key package versions listed.
 
 \subsection{Hardware and HPC Configuration}
-\label{sect: 3.9.2hardware}
+\label{sect: hardware}
 
 % GPU hardware used for training; SLURM batch scripts for HPC runs.
 % Numerical precision: Float32 for all tensors; Float64 for ODE solver tolerances only.
 
 \subsection{Reproducibility}
-\label{sect: 3.9.3reproducibility}
+\label{sect: reproducibility}
 
 % Random seed fixed at 42 throughout.
 % Checkpoint strategy: best validation loss saved; retrain flag for resuming.
