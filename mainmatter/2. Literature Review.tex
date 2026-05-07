@@ -527,7 +527,7 @@ The examples highlighted are just a few of many ML-SGS models proposed; the work
 \end{figure}
 
 Data-driven ROMs employ the same working principles as autoencoders, specifically the use of the encoder and decoder network architectures. The encoder compresses the high-dimensional snapshots into a lower-dimensional latent space, and the decoder reconstructs this latent space back to the exact dimensions as the input snapshots, while minimising reconstruction error. The usage of non-linear activation functions within the autoencoder allows the network to capture the complex non-linear behaviour of turbulent structures. This offers a key advantage over methods like POD, which are limited to linear representations \cite{Pant2021}. For processing spatial data of fluid flows, autoencoders often integrate CNNs into their architecture due to their good results with grid-structured data. \autoref{fig: CNN encoder} shows an overview of how an autoencoder reduces and reconstructs a single CFD snapshot to and from a latent space. 
-
+\todo{rewrite these paragraphs}
 What differs data-driven ROMs from autoencoders is the requirement that the latent space must also capture and predict the temporal dynamics of the system. This means that, in addition to learning a compact representation of the input data, the latent variables must be predicted in a way that accurately reproduces the future state of the simulation \cite{Vinuesa2022}. This can be achieved by either selecting the dimensions of the latent space in a way that allows for a correct prediction of the future flow field, or by utilising regression architectures that are better suited for time series prediction, such as RNNs, LSTMs, or neural ODEs. 
 
 \begin{figure}[h]

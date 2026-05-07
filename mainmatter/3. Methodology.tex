@@ -41,7 +41,7 @@ Here, $f_i$ and $b_i$ represent the time-integrated fluid and body equations, re
 
 Time integration is performed using an explicit predictor-corrector scheme, with incompressibility enforced via a pressure-projection step at each substep. Incompressibility is enforced by solving the Pressure-Poisson equation using geometric multigrid to accelerate solver convergence. The governing time step is automatically adjusted to maintain a stable Courant-Friedrichs-Lewy (CFL) number. No explicit subgrid-scale model is employed; instead, WaterLily operates as an implicit Large Eddy Simulation (iLES) solver, where the numerical dissipation from the flux-limited convection scheme acts as the effective SGS model. \todo{Margolin et al reference}
 
-The smoothed velocity field $u_{\epsilon, i}$ is stored as a multi-dimensional array $\mathbf{u}$ of dimensions $(N_1+2) \times (N_2+2) \times n$, where $N_1$ and $N_2$ are the number of interior grid points in each spatial direction, the additional two cells per dimension are concatenated on the extremities of the computational domain and are used as ghost cells to impose boundary conditions. 
+The smoothed velocity field $u_{\epsilon, i}$ is stored as a multi-dimensional array $\mathbf{u}$ of dimensions $(N_x+2) \times (N_y+2) \times n$, where $N_x$ and $N_y$ are the number of interior grid points in each spatial direction, the additional two cells per dimension are concatenated on the extremities of the computational domain and are used as ghost cells to impose boundary conditions. 
 
 For the ML framework developed in this work, two fields from the WaterLily simulation are of central importance: the velocity field $\mathbf{u}$ and the zeroth kernel moment $\boldsymbol{\mu_0}$. Where $\mathbf{u}$ represents the full flow state that the AE compresses into a low-dimensional latent representation, which will then be integrated in time by the Neural ODE. The zeroth order kernel moment $\boldsymbol{\mu_0}$ encodes the geometry of the immersed body at each grid point: it is unity in $\Omega_f$, zero in $\Omega_b$ and varies smoothly over the boundary. The purpose of passing $\boldsymbol{\mu_0}$ as an additional input to the model is to enable the model to learn the no-slip boundary condition and maintain physical consistency near the immersed surface. This way, the network receives explicit information about the body at a given flow state $\mathbf{u}$. In practice, both fields are extracted from the simulation at each saved timestep as a pair ($\mathbf{u}$, $\boldsymbol{\mu_0}$) and stored together for training and inference. 
 
@@ -145,27 +145,130 @@ A Reynolds number of $Re=2500$ is selected for the validation simulation. At thi
 This makes $Re=2500$ an interesting test case for the surrogate model: the dominant shedding period provides a clear, learnable periodic structure, while the secondary flow features introduce complexity and nonlinearity. This challenges the data-driven approach and motivates the inclusion of physics-informed regularisation and transfer learning capabilities in the framework. Where a lower Reynolds number would produce various length and time scales in the wake, preventing the model from properly testing its ability to capture multi-scale dynamics. While higher Reynolds numbers would introduce a broader spectrum of turbulent scales and further challenge the surrogate model, $Re=2500$ represents a practical upper bound given the computational constraints of this work. Increasing the Reynolds number requires a finer spatial resolution to properly resolve all relevant turbulent structures, which would rapidly increase the memory footprint and simulation wall-time. The full flow field snapshots used to train the ML framework already consume a significant portion of available memory; a further increase in resolution would exceed the practical hardware limitations of the systems used. The chosen Reynolds number, therefore, strikes a balance between flow complexity and computational practicality. 
 
 
-\subsection{Dataset Construction}
+% \subsection{Dataset Construction}
 
-% Structure of SimData (fields: u, p, f, μ₀, force, time, Δt, period ranges).
-% Training/test split strategy and downsampling method.
+% % Structure of SimData (fields: u, p, f, μ₀, force, time, Δt, period ranges).
+% % Training/test split strategy and downsampling method.
 
 % -----------------------------------------------------------------------
 \section{Data Preprocessing}
 \label{sect: preprocessing}
 
-% Describe all preprocessing steps from raw CFD snapshots to model-ready tensors.
+Before being passed to the autoencoder, the raw velocity snapshots produced by WaterLily need to be preprocessed to ensure proper inference and generalisability: Removal of ghost cells, assembly of the multi channel input tensor, and per-channel normalization. These steps need to be applied consistently during training, validation and inference processses. 
+
 
 \subsection{Ghost Cell Removal}
 \label{sect: ghostcells}
 
-% Explain why boundary artefacts (ghost cells from WaterLily) are clipped before encoding.
+WaterLily employs ghost cells at the boundary of the domain to enforce the Biot-Savart boundary conditions. These ghost cells carry values that are not physically meaningful to the flow state observations. Since we want to learn the actual underlying dynamics of the flow and not the boundary conditions, the ghost cells are stripped from the computational domain prior to training. Removing the ghost cells also has the aditional benefit that we are able to keep the amount of interior grid points as a power of 2, which will prove usefull in the parametric construction of the autoencoder. 
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[scale=1.0]
+
+% --- parameters ---
+\def\cs{0.55}    % cell size in cm
+
+% --- colors ---
+\definecolor{ghostcol}{RGB}{200,218,240}
+\definecolor{interiorcol}{RGB}{255,255,255}
+
+% --- ghost cells (full border ring) ---
+\foreach \i in {0,...,11} {
+    \foreach \j in {0,...,11} {
+        \pgfmathparse{(\i==0 || \i==11 || \j==0 || \j==11) ? 1 : 0}
+        \ifdim\pgfmathresult pt > 0pt
+            \fill[ghostcol]
+                (\i*\cs, \j*\cs) rectangle +(\cs,\cs);
+        \fi
+    }
+}
+
+% --- interior cells ---
+\foreach \i in {1,...,10} {
+    \foreach \j in {1,...,10} {
+        \fill[interiorcol]
+            (\i*\cs, \j*\cs) rectangle +(\cs,\cs);
+    }
+}
+
+% --- grid lines ---
+\draw[gray!50, very thin] (0,0) grid[step=\cs] (12*\cs, 12*\cs);
+
+% --- thick border around interior domain ---
+\draw[black, very thick] (1*\cs, 1*\cs) rectangle (11*\cs, 11*\cs);
+
+% --- outer boundary ---
+\draw[black, thin] (0,0) rectangle (12*\cs, 12*\cs);
+
+% --- dashed clip lines ---
+\draw[dashed, gray!70, thin] (1*\cs, 0)      -- (1*\cs,  12*\cs);
+\draw[dashed, gray!70, thin] (11*\cs, 0)     -- (11*\cs, 12*\cs);
+\draw[dashed, gray!70, thin] (0,      1*\cs) -- (12*\cs, 1*\cs);
+\draw[dashed, gray!70, thin] (0,     11*\cs) -- (12*\cs, 11*\cs);
+
+% --- face-centred velocity arrows (every other cell to avoid clutter) ---
+% u arrows (horizontal, left face of cell)
+\foreach \i in {1,...,10} {
+    \foreach \j in {1,...,10} {
+        \draw[->, blue!65!black, semithick, draw opacity=0.6]
+            (\i*\cs, \j*\cs + 0.5*\cs) -- ++(0.32*\cs, 0);
+    }
+}
+% v arrows (vertical, bottom face of cell)
+\foreach \i in {1,...,10} {
+    \foreach \j in {1,...,10} {
+        \draw[->, red!65!black, semithick, draw opacity=0.6]
+            (\i*\cs + 0.5*\cs, \j*\cs) -- ++(0, 0.32*\cs);
+    }
+}
+
+% --- corner index labels ---
+\node[font=\tiny, gray!55!black] at (0.5*\cs, 0.5*\cs)   {$(1,1)$};
+\node[font=\tiny, gray!55!black] at (11.5*\cs, 11.5*\cs) {$(N{+}1,N{+}1)$};
+\node[font=\tiny, black]         at (1.5*\cs,  1.75*\cs)  {$(2,2)$};
+\node[font=\tiny, black]         at (10.5*\cs, 10.75*\cs) {$(N,N)$};
+
+% --- annotations ---
+\node[font=\small, align=center] at (6*\cs, -0.7*\cs)
+    {Fluid domain $\Omega_f$};
+
+\node[font=\small, ghostcol!60!black, fill=white, inner sep=2pt]
+    (glabel) at (6*\cs, 13.0*\cs) {Ghost cells};
+\draw[->, gray!60, thin] (glabel.south) -- (0.5*\cs, 11.5*\cs);
+
+% --- legend ---
+\node[font=\small, blue!65!black, anchor=west]
+    at (13.0*\cs, 8.5*\cs) {$\rightarrow\; u_i$};
+\node[font=\small, red!65!black,  anchor=west]
+    at (13.0*\cs, 7.5*\cs) {$\uparrow\; v_j$};
+
+\node[font=\small, white, anchor=west]
+    at (-3*\cs, 8.5*\cs) {$\rightarrow\; u_i$};
+\node[font=\small, white,  anchor=west]
+    at (-3*\cs, 7.5*\cs) {$\uparrow\; v_j$};
+
+\end{tikzpicture}
+    \caption{Illustration of the WaterLily grid showing the location of ghost cells }
+    \label{fig: ghost cells}
+\end{figure}
+
+The ghost cells are removed by slicing the raw arrays from index $2$ to $N$ in each spatial dimension, yielding interior fields of size $N_x \times N_y$ for both the velocity field $\mathbf{u}\in \mathbb{R}^{N_x\times N_y \times N_u}$ and the zeroth kernel moment  $\boldsymbol{\mu_0} \in \mathbb{R}^{N_x \times N_y \times N_u}$, where $N_x$ and $N_y$ are the number of grid cells, and $N_u$ is the number of velocity components.
 
 \subsection{Channel Construction}
-\label{sect: channels}
+\label{subsect: channels}
 
-% How the 4-channel input tensor (2 velocity channels + 2 μ₀ channels) is assembled.
-% What the model reconstructs (2-channel velocity output).
+The model is provided with explicit geometric information about the simulation domain by concatenating the zeroth kernel moment $\boldsymbol{\mu_0}$ to the velocity field $\mathbf{u}$ along the channel dimension, forming the input tensor
+
+\begin{equation}\label{eq:input_tensor}
+    \mathbf{x}_\text{in} = [\mathbf{u}\, ;\, \boldsymbol{\mu_0}] \in 
+    \mathbb{R}^{N_x \times N_y \times C_\text{in}}.
+\end{equation}
+
+For our 2D simulation, each training sample therefore consists of a 4-channel input tensor and a 2-channel reconstruction target. The reconstruction target is the velocity field $\mathbf{u}$, containing the $x$- and $y$-components of velocity. 
+
+Since $\boldsymbol{\mu_0}$ is unity in the fluid and zero inside the solid, its inclusion provides the encoder with explicit geometric context, allowing it to produce latent representations that are informed on the simulation geometry. The decoder reconstructs only the 2-channel velocity field $\hat{\mathbf{u}}$; predicting $\boldsymbol{\mu_0}$ is unnecessary since, in the absence of fluid-structure interaction, the body velocity is fully determined by Equation~\ref{eq: WaterLilyBodyVelocity} and therefore known at any time $t^*$.
+
 
 \subsection{Normalization}
 \label{sect: normalization}
@@ -176,6 +279,32 @@ This makes $Re=2500$ an interesting test case for the surrogate model: the domin
 % -----------------------------------------------------------------------
 \section{Autoencoder}
 \label{sect: AE}
+
+To harness the Neural ODE's predictive capabilities, we need a way to reduce the dimensionality of our dynamical system. This is the role the autoencoder encompasses: it provides a way to produce a compact, non-linear representation of the instantaneous flow state on which the latent dynamics can subsequently be learned. A convolutional Autoencoder is well-suited to this task, as its filters are designed to extract local spatial features from grid-structured fields, while the implementation of non-linear activation functions allows it to represent the flow states on a curved low-dimensional surface. 
+
+The autoencoder learns an efficient reduced-order representation of the instantaneous full-order flow state. The AE consists of two parts, namely an encoder and a decoder. The encoder $\varphi_\theta: \mathbb{R}^{N_x \times N_y \times C_{in}} \to \mathbb{R}^{N_z}$, maps the instantaneous full-order augmented input to a latent state vector $\mathbf{z} = \varphi_\theta(\mathbf{x}_\text{in})$, with small dimensions such that $N_z \ll N_x N_y C_\text{in}$. The decoder $\psi_\theta : \mathbb{R}^d \to \mathbb{R}^{N_x \times N_y \times N_u}$ then maps this latent state vector back to physical space $\hat{\mathbf{u}} = \psi_\theta(\mathbf{z})$ with the following goal.
+
+
+\begin{equation}\label{eq: AE_goal}
+    \hat{\mathbf{u}} \simeq \mathbf{u}, \quad \text{where} \quad 
+    \hat{\mathbf{u}} = \psi_\theta(\mathbf{z}), \quad 
+    \mathbf{z} = \varphi_\theta(\mathbf{x}_\text{in})
+\end{equation}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/autoencoder.png}
+    \caption{Schematic view of the CNN-AE architecture. The colour coding for each layer is:
+  2D-convolution: \colorbox{\ConvColor}{\phantom{x}},
+  Batch normalization: \colorbox{\BnColor}{\phantom{x}}
+  ReLU activation: \colorbox{\ReluColor}{\phantom{x}},
+  max pooling: \colorbox{\PoolColor}{\phantom{x}},
+  fully-connected layer: \colorbox{\FcColor}{\phantom{x}},
+  GELU activation: \colorbox{\GeluColor}{\phantom{x}},
+  upsampling: \colorbox{\UnpoolColor}{\phantom{x}}} 
+    \label{fig: AE}
+\end{figure}
 
 % Encoding 256×256×4 flow fields to a 16-dimensional latent space.
 
