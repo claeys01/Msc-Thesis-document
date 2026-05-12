@@ -280,9 +280,9 @@ Since $\boldsymbol{\mu_0}$ is unity in the fluid and zero inside the solid, its 
 \section{Autoencoder}
 \label{sect: AE}
 
-To harness the Neural ODE's predictive capabilities, we need a way to reduce the dimensionality of our dynamical system. This is the role the autoencoder encompasses: it provides a way to produce a compact, non-linear representation of the instantaneous flow state on which the latent dynamics can subsequently be learned. A convolutional Autoencoder is well-suited to this task, as its filters are designed to extract local spatial features from grid-structured fields, while the implementation of non-linear activation functions allows it to represent the flow states on a curved low-dimensional surface. 
+To harness the Neural ODE's predictive capabilities, we need a way to reduce the dimensionality of our dynamical system. This is the role the autoencoder encompasses: it provides a way to produce a compact, non-linear representation of the instantaneous flow state on which the latent dynamics can subsequently be learned. A convolutional Autoencoder is well-suited to this task, as its filters are designed to extract local spatial features from grid-structured fields, while the implementation of non-linear activation functions allows it to represent the flow states on a curved low-dimensional manifold. 
 
-The autoencoder learns an efficient reduced-order representation of the instantaneous full-order flow state. The AE consists of two parts, namely an encoder and a decoder. The encoder $\varphi_\theta: \mathbb{R}^{N_x \times N_y \times C_{in}} \to \mathbb{R}^{N_z}$, maps the instantaneous full-order augmented input to a latent state vector $\mathbf{z} = \varphi_\theta(\mathbf{x}_\text{in})$, with small dimensions such that $N_z \ll N_x N_y C_\text{in}$. The decoder $\psi_\theta : \mathbb{R}^d \to \mathbb{R}^{N_x \times N_y \times N_u}$ then maps this latent state vector back to physical space $\hat{\mathbf{u}} = \psi_\theta(\mathbf{z})$ with the following goal.
+The autoencoder learns an efficient reduced-order representation of the instantaneous full-order flow state. The AE consists of two parts, namely an encoder and a decoder. The encoder $\varphi_\theta: \mathbb{R}^{N_x \times N_y \times C_{in}} \to \mathbb{R}^{N_z}$, maps the instantaneous full-order augmented input to a latent state vector $\mathbf{z} = \varphi_\theta(\mathbf{x}_\text{in})$, with small dimensions such that $N_z \ll N_x N_y C_\text{in}$. The decoder $\psi_\theta : \mathbb{R}^z \to \mathbb{R}^{N_x \times N_y \times N_u}$ then maps this latent state vector back to physical space $\hat{\mathbf{u}} = \psi_\theta(\mathbf{z})$ with the following goal.
 
 
 \begin{equation}\label{eq: AE_goal}
@@ -292,32 +292,180 @@ The autoencoder learns an efficient reduced-order representation of the instanta
 \end{equation}
 
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\linewidth]{figures/Methodology/autoencoder.png}
-    \caption{Schematic view of the CNN-AE architecture. The colour coding for each layer is:
-  2D-convolution: \colorbox{\ConvColor}{\phantom{x}},
-  Batch normalization: \colorbox{\BnColor}{\phantom{x}}
-  ReLU activation: \colorbox{\ReluColor}{\phantom{x}},
-  max pooling: \colorbox{\PoolColor}{\phantom{x}},
-  fully-connected layer: \colorbox{\FcColor}{\phantom{x}},
-  GELU activation: \colorbox{\GeluColor}{\phantom{x}},
-  upsampling: \colorbox{\UnpoolColor}{\phantom{x}}} 
-    \label{fig: AE}
-\end{figure}
-
 % Encoding 256×256×4 flow fields to a 16-dimensional latent space.
 
 \subsection{Architecture}
 \label{sect: AEarch}
 
-% Convolutional encoder: n_conv=6 layers, C_base=8 starting channels, pool_kernel=2 (halving spatial resolution each layer).
-% Dense bottleneck: n_dense=2 layers, latent_dim=16.
-% Symmetric decoder mirrors the encoder.
-% Include a table or diagram of layer sizes and parameter counts.
+The encoder and decoder are constructed parametrically from a small set of hyperparameters: the number of convolutional blocks $n_\text{conv}$, the number of dense layers $n_\text{dense}$, the base channel count $C_\text{base}$, the convolution kernel size $k$, the pooling kernel size $p$, and the latent dimension $N_z$. Which are all summarised in Table~\ref{tab: ae_hyperparameters}.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{@{}llc@{}}
+        \toprule
+        Symbol & Description  \\
+        \midrule
+        $n_\text{conv}$    & Number of convolutional blocks per encoder/decoder    \\
+        $n_\text{dense}$   & Number of fully-connected layers per encoder/decoder  \\
+        $C_\text{base}$    & Base channel count (first encoder block)              \\
+        $k$                & Convolution kernel size                               \\
+        $p$                & Pooling/upsampling kernel size                        \\
+        $s$                & Convolution stride                                    \\
+        $N_z$              & Latent dimension                                      \\
+        \bottomrule
+    \end{tabular}
+    \caption{Governing hyperparameters for parametric autoencoder construction}
+    \label{tab: ae_hyperparameters}
+\end{table}
+
+
+An illustrative overview of the autoencoder architecture with these hyperparameters is shown in Figure~\ref{fig: AE}, which shows how the encoder, dense bottleneck, and decoder connect to form the full compression-decompression pipeline. The following subsections will discuss the architecture of these components individually. 
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/autoencoder.png}
+    \caption{Schematic view of the CNN-AE architecture with $n_\text{conv}=6$, $n_\text{dense}=2$, $C_\text{base}=8$, $k=3$, $p=2$, $s=1$, $N_z=16$ and $C_\text{in}=4$. The colour coding for each layer is:
+  2D-convolution: \colorbox{\ConvColor}{\phantom{x}},
+  Batch normalization: \colorbox{\BnColor}{\phantom{x}},
+  ReLU activation: \colorbox{\ReluColor}{\phantom{x}},
+  max pooling: \colorbox{\PoolColor}{\phantom{x}},
+  fully-connected layer: \colorbox{\FcColor}{\phantom{x}},
+  GELU activation: \colorbox{\GeluColor}{\phantom{x}},
+  compressed feature map:~\colorbox{\FeatColor}{\phantom{x}},
+  upsampling: \colorbox{\UnpoolColor}{\phantom{x}}}
+    \label{fig: AE}
+\end{figure}
+
+\subsubsection{Encoder}
+
+The encoder consists of $n_\text{conv}$ stacked compression blocks, followed by a sequence of $n_\text{dense}$ fully connected layers that project the flattened feature maps onto the latent vector $\mathbf{z} \in \mathbb{R}^{N_z}$. Each compression block applies, in order, a 2D convolution with kernel size $k$ and stride $s$, a batch-normalisation layer, a ReLU activation, and a $p \times p$ max-pooling operation. Same-padding is used in every convolution so that spatial resolution is reduced only through the pooling step. The convolution extracts local spatial features from the instantaneous flow state, and batch normalisation stabilises the distribution of layer inputs across a mini-batch. Batch normalisation stabilises training by smoothing the loss landscape, scaling and shifting the layer inputs based on trainable parameters to preserve model expressivity \cite{Santurkar2019}, allowing larger learning rates and reducing sensitivity to weight initialisation. ReLU introduces the non-linearity to represent the flow states on a low-dimensional latent space. 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/encoder.png}
+    \caption{Example encoder architecture with $n_\text{conv}=6$, $p=2$, $k=3$, $C_\text{in}=4$ and $C_\text{base}=8$. The colour coding for each layer is:
+  2D-convolution:~\colorbox{\ConvColor}{\phantom{x}},
+  Batch normalization:~\colorbox{\BnColor}{\phantom{x}},
+  ReLU activation:~\colorbox{\ReluColor}{\phantom{x}},
+  max pooling:~\colorbox{\PoolColor}{\phantom{x}}} \&
+  compressed feature map:~\colorbox{\FeatColor}{\phantom{x}}
+    \label{fig: encoder}
+\end{figure}
+
+The encoder achieves its compression by doubling the channel count after each block and halving the spatial resolution using the maxpool operation, shown mathematically in \ref{eq: ae_channels} \& \ref{eq: ae_spatial}. This means that at each convolutional step, the number of feature maps is doubled to extract more information from the turbulent flow snapshot, while at each downsampling step, the dimension is reduced to allow the next layer to combine the identified flow features into a new feature map. This allows the extraction of larger and more complex features for progressively deeper convolutional networks from simple non-linear combinations of the previous ones \cite{Eivazi2022}.
+
+\begin{align}
+    C_i &= C_\text{base}\, 2^{\,i-1}, & i &= 1, \dots, n_\text{conv}, 
+    \label{eq: ae_channels} \\
+    H_i &= N_x / p^{\,i}, \qquad W_i = N_y / p^{\,i}, & i &= 1, \dots, n_\text{conv}.
+    \label{eq: ae_spatial}
+\end{align}
+
+ These deeper feature maps, therefore, encode larger-scale flow structures, such as the periodic wake pattern, while the shallow maps retain local features such as shear layers and boundary-layer gradients. The final compression block omits the batch normalisation step to preserve the activation magnitudes that feed into the dense bottleneck. An example schematic of an encoder is shown in Figure~\ref{fig: encoder}, showing how the reduction in spatial size is achieved while increasing the number of channels.
+
+
+\subsubsection{Dense layers}
+
+After the final compression block, the feature map of dimensions $H_{n_\text{conv}} \times W_{n_\text{conv}} \times C_{n_\text{conv}}$ is flattened and passed through a sequence of $n_\text{dense}$ fully connected layers. Each successive layer halves the number of nodes, with the last layer projecting onto the $N_z$-dimensional latent vector $\mathbf{z} = \varphi_\theta(\mathbf{x}_\text{in})$ shown in Figure~\ref{fig: dense}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/latent.png}
+    \caption{Example of the dense compression/decompression with $n_\text{dense}=2$ and a latent size of 16. The colour coding for each layer is: ReLU activation: \colorbox{\ReluColor}{\phantom{x}},
+    fully-connected~layer: \colorbox{\FcColor}{\phantom{x}} \&
+    compressed feature map:~\colorbox{\FeatColor}{\phantom{x}}}
+    \label{fig: dense}
+\end{figure}
+
+The dense bottleneck performs the bulk of the dimensionality reduction: the convolutional blocks reorganise the input into a compact representation with a large number of channels, and the dense layers then learn a non-linear projection from this representation to the low-dimensional space of the latent state. No activation function is applied to the final dense layer, so that the latent vector $\mathbf{z}$ is unconstrained in $\mathbb{R}^{N_z}$ rather than being constrained by an activation function. This ensures that the Neural ODE operates on the same unconstrained domain as the encoder. 
+
+The latter half of the dense bottleneck mirrors the first half, projecting $\mathbf{z}$ back to the same dimensions as the last dense layer of the dense encoder. After this, it doubles the number of nodes at each successive layer until the original flattened feature map size $H_{n_\text{conv}} \cdot W_{n_\text{conv}} \cdot C_{n_\text{conv}}$ is recovered, with ReLU activations between layers. The resulting vector is then reshaped into a feature map of dimensions $H_{n_\text{conv}} \times W_{n_\text{conv}} \times C_{n_\text{conv}}$, serving as the starting point for the decompression blocks.
+
+\subsubsection{Decoder}
+
+The decoder $\psi_\theta$ reverses the operation done by the encoder by passing the feature map at the end of the dense bottleneck and passing it through $n_\text{conv}$ decompression blocks, each of which consists of a bilinear upsampling by a factor of $p$, a 2D convolution with kernel size $k$ and stride $s$, and a GELU activation. 
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[
+            name=relu,
+            width=0.45\linewidth,
+            height=0.4\linewidth,
+            xmin=-4, xmax=4,
+            ymin=-1, ymax=4,
+            axis lines=middle,
+            xlabel={$x$},
+            ylabel={$\sigma(x)$},
+            xlabel style={at={(axis description cs:1.0,0.25)}, anchor=west},
+            ylabel style={at={(axis description cs:0.5,1.0)}, anchor=north west},
+            xtick={-4,-2,2,4},
+            ytick={2,4},
+            samples=200,
+            domain=-4:4,
+            title={ReLU},
+            grid=major,
+            grid style={dashed, gray!30},
+        ]
+            \addplot[blue, thick] {max(0,x)};
+        \end{axis}
+
+        \begin{axis}[
+            at={(relu.east)}, anchor=west, xshift=1.2cm,
+            width=0.45\linewidth,
+            height=0.4\linewidth,
+            xmin=-4, xmax=4,
+            ymin=-1, ymax=4,
+            axis lines=middle,
+            xlabel={$x$},
+            ylabel={$\sigma(x)$},
+            xlabel style={at={(axis description cs:1.0,0.25)}, anchor=west},
+            ylabel style={at={(axis description cs:0.5,1.0)}, anchor=north west},
+            xtick={-4,-2,2,4},
+            ytick={2,4},
+            samples=200,
+            domain=-4:4,
+            title={GELU},
+            grid=major,
+            grid style={dashed, gray!30},
+        ]
+            \addplot[red, thick] {0.5*x*(1 + tanh(sqrt(2/pi)*(x + 0.044715*x^3)))};
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Comparison of the ReLU and GELU activation functions. ReLU zeroes out all negative inputs, while GELU smoothly gates negative inputs near zero and asymptotes to the identity for large positive inputs.}
+    \label{fig: activations}
+\end{figure}
+
+The upsampling step reverses the spatial compression introduced by the encoder's pooling operation, aiming to restore the latent vector to its full physical dimensions. The subsequent convolution learns a smooth refinement of the upsampled feature map. In contrast to the encoder's ReLU activation function, the decoder uses GELU activation because the reconstructed velocity field contains both positive and negative values, and ReLU's hard zero clipping would restrict the reconstruction of the negative-velocity regions of the wake. Where GELU allows the decompression blocks to produce negative variables, such that periodic flow features can be properly reconstructed, Figure~\ref{fig: activations} shows a graphic comparison of these two activation functions. 
+
+\begin{align}
+    C_i &= C_\text{base}\, 2^{\,n_\text{conv}-i}, & i &= 1, \dots, n_\text{conv},
+    \label{eq: ae_dec_channels} \\
+    H_i &= N_x \cdot p^{\,i-n_\text{conv}}, \qquad W_i = N_y \cdot p^{\,i-n_\text{conv}}, & i &= 1, \dots, n_\text{conv}.
+    \label{eq: ae_dec_spatial}
+\end{align}
+
+In the decoder, the decompression blocks halve the channel count while doubling the spatial dimension in a symmetrical fashion to the encoders' compression path, shown in \ref{eq: ae_dec_channels} \& \ref{eq: ae_dec_spatial}. The final decompression block is followed by two additional convolutional operations, seen on the right in Figure~\ref{fig: decoder}. The first of these applies a $k \times k$ convolution that maps the last decoder channel count, which is the same as the input channel count in the encoder $C_\text{in}$, to $N_u$, so that they match the dimensions of the target velocity field. The second layer applies another $k \times k$ convolution with $N_u \to N_u$ channels and acts as a learned smoothing layer, which aims to suppress checkerboarding \todo{add source on the checkerboarding} artefacts that can be produced by repeated bilinear upsampling. Both of these last layers have linear activation functions, so the reconstructed velocity field is a linear combination of the last feature map. 
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/decoder.png}
+    \caption{Example decoder architecture with $n_\text{conv}=6$, $p=2$, $k=3$, $C_\text{in}=4$ and $C_\text{base}=8$. \\ The colour coding for each layer is:
+      upsampling: \colorbox{\UnpoolColor}{\phantom{x}},
+      2D-convolution:~\colorbox{\ConvColor}{\phantom{x}},
+      GELU activation: \colorbox{\GeluColor}{\phantom{x}} \& 
+      compressed feature map:~\colorbox{\FeatColor}{\phantom{x}}}
+    \label{fig: decoder}
+\end{figure}
+
+Batch normalisation is not included in the decoder, because the goal of the decoder is to reconstruct a specific physical field with known statistics (like divergence, kinetic energy or mean velocity), and it thus should not regularise the intermediate feature maps as it would interfere with the correct reconstruction of the learned flow states. 
 
 \subsection{Loss Function}
 \label{sect: AEloss}
+
+
 
 % Reconstruction loss: L1 / L2 / Charbonnier (configurable via :loss symbol).
 % Physics regularizers: divergence loss (λ_div = 1000), curl loss (λ_curl = 100), strain loss (λ_strain).
