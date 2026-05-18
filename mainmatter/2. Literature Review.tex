@@ -433,6 +433,7 @@ LSTMs are particularly useful in CFD due to fluid dynamics being an inherently t
 
 
 \subsubsection{Neural Ordinary Differential Equations}
+\label{subsubsect: NODEs}
 
 Neural Ordinary Differential Equations (NODEs) are a type of deep neural network model introduced by \textcite{Chen2018} that differ substantially from conventional neural networks. They are similar to RNNs, and more specifically, Residual Neural Networks (ResNETs \cite{He2015}). In a ResNet, the latent space is represented by a stack of layers, as shown in \autoref{fig: ResNet}. NODEs learn the mapping of sequential data through a continuous representation of the latent space. 
 
@@ -456,7 +457,7 @@ Where $h_{t+1}$ is the newly determined latent state, which is constructed of a 
    dh(t)/dt = f(h(t), t, \theta) 
 \end{equation}
 
-A conventional ODE solver can then be used to solve this equation. This formulation provides adaptive computation capabilities, as ODE solvers can dynamically adjust step sizes based on the solution's complexity, enabling an optimal trade-off between speed and accuracy. This essentially allows NODEs to define a smooth flow through the latent space, instead of a discrete series of transformations that ResNets produce. \autoref{fig: latentspace} shows a graphical representation of the latent space vector field.
+A conventional ODE solver can then be used to solve this equation. This formulation provides adaptive computation capabilities, as ODE solvers can dynamically adjust step sizes based on the solution's complexity, enabling an optimal trade-off between speed and accuracy. This essentially allows NODEs to define a smooth flow through the latent space, rather than the discrete series of transformations that ResNets produce. \autoref{fig: latentspace} shows a graphical representation of the latent space vector field.
 
 \begin{wrapfigure}{r}{0.45\textwidth}
     \includegraphics[width=1\linewidth]{figures//Literature review/latentspace.png}
@@ -464,7 +465,7 @@ A conventional ODE solver can then be used to solve this equation. This formulat
     \label{fig: latentspace}
 \end{wrapfigure}
 
-NODEs also provide a memory-efficient way to train deep models using the adjoint sensitivity method, which propagates through the ODE by solving a second augmented ODE backwards in time. Because the neural network can be viewed as a universal approximator, and the ODE solver can evaluate the latent layers at any time point for any timestep, the resulting model provides a smooth prediction without being constrained to discrete time steps or layers. This behaviour makes NODEs particularly well-suited for predicting systems where continuous time behaviour is essential, even if the supplied training data is irregularly sampled in time. 
+NODEs also provide a memory-efficient way to train deep models using the adjoint sensitivity method, which propagates through the ODE by solving a second augmented ODE backwards in time. Because the neural network can be viewed as a universal approximator, and the ODE solver can evaluate the latent layers at any time point and timestep, the resulting model provides smooth predictions without being constrained to discrete time steps or layers. This behaviour makes NODEs particularly well-suited for predicting systems where continuous-time behaviour is essential, even when the supplied training data is irregularly sampled in time. 
 
 In the context of CFD time-series prediction, NODEs can offer key advantages. Their adaptive behaviour can allow for variable time step integration, which can be optimal in accelerating potential CFD simulations. However, since NODEs involve solving ODEs and fluid systems are often high-dimensional, solving these ODEs can be computationally intensive. That is why, in recent literature, such as the work of \textcite{Shankar2022}, NODEs have been implemented within data-driven reduced-order models, where the dynamics of the latent space are predicted using NODEs. This aligns with the objective of this thesis, where instead of predicting the time integration of the NSE, the authors have implemented NODEs in the latent space of a ROM, which is used to predict the entirety of the latent dynamics, which can then be used as a surrogate model for a specific flow case. 
 

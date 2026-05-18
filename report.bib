@@ -1664,3 +1664,70 @@ isbn="978-3-540-27039-3"
    url = {http://arxiv.org/abs/1805.11604},
    year = {2019}
 }
+
+@article{Nair2024,
+   abstract = {The neural ordinary differential equation (ODE) framework has emerged as a powerful tool for developing accelerated surrogate models of complex physical systems governed by partial differential equations (PDEs). A popular approach for PDE systems employs a two-step strategy: a nonlinear dimensionality reduction using an autoencoder, followed by time integration in the latent space using a neural ODE. This study examines the applicability of such autoencoder-based neural ODE architectures to systems where advection dominates the dynamics. In addition to predictive performance, this work investigates the mechanisms behind model acceleration by analyzing how the autoencoder and neural ODE components influence latent system time-scales. These effects are quantified through eigenvalue analysis of dynamical system Jacobians. Specifically, the study evaluates the sensitivity of model accuracy and discovered latent time-scales to key training choices: decoupled versus end-to-end training, latent space dimensionality, and training trajectory length. A central finding is the crucial role of training trajectory length (i.e., the number of rollout steps included in the loss function), which directly impacts the recovered latent time-scales. Longer trajectories lead to larger limiting time-scales in the latent system, and the most accurate models are shown to capture the largest time-scales of the original system. These insights are demonstrated across a diverse set of unsteady, advection-driven fluid dynamics problems: (1) the Kuramoto-Sivashinsky equations, (2) hydrogen-air channel detonations governed by the compressible reacting Navier-Stokes equations, and (3) 2D atmospheric flows.},
+   author = {Ashish S. Nair and Shivam Barwey and Pinaki Pal and Jonathan F. MacArt and Troy Arcomano and Romit Maulik},
+   month = {3},
+   note = {for my case this paper basically tells me that the convolution layers in the encoder do not mater for the latent space, this paper does not really tell me anything about ensuring reconstruction accuracy},
+   title = {Understanding Latent Timescales in Neural Ordinary Differential Equation Models for Advection-Dominated Dynamical Systems},
+   url = {http://arxiv.org/abs/2403.02224},
+   year = {2024}
+}
+
+@article{Turan2022,
+   abstract = {Neural differential equations have recently emerged as a flexible data-driven/hybrid approach to model time-series data. This letter experimentally demonstrates that if the data contains oscillations, then standard fitting of a neural differential equation may result in a 'flattened out' trajectory that fails to describe the data. We then introduce the multiple shooting method and present successful demonstrations of this method for the fitting of a neural differential equation to two datasets (synthetic and experimental) that the standard approach fails to fit. Constraints introduced by multiple shooting can be satisfied using a penalty or augmented Lagrangian method.},
+   author = {Evren Mert Turan and Johannes Jaschke},
+   doi = {10.1109/LCSYS.2021.3135835},
+   issn = {24751456},
+   journal = {IEEE Control Systems Letters},
+   keywords = {Multiple shooting,neural differential equations,neural networks,time series},
+   pages = {1897-1902},
+   publisher = {Institute of Electrical and Electronics Engineers Inc.},
+   title = {Multiple Shooting for Training Neural Differential Equations on Time Series},
+   volume = {6},
+   year = {2022}
+}
+
+@article{Rahaman2019,
+   abstract = {Neural networks are known to be a class of highly expressive functions able to fit even random input-output mappings with $100\%$ accuracy. In this work, we present properties of neural networks that complement this aspect of expressivity. By using tools from Fourier analysis, we show that deep ReLU networks are biased towards low frequency functions, meaning that they cannot have local fluctuations without affecting their global behavior. Intuitively, this property is in line with the observation that over-parameterized networks find simple patterns that generalize across data samples. We also investigate how the shape of the data manifold affects expressivity by showing evidence that learning high frequencies gets \emph\{easier\} with increasing manifold complexity, and present a theoretical understanding of this behavior. Finally, we study the robustness of the frequency components with respect to parameter perturbation, to develop the intuition that the parameters must be finely tuned to express high frequency functions.},
+   author = {Nasim Rahaman and Aristide Baratin and Devansh Arpit and Felix Draxler and Min Lin and Fred A. Hamprecht and Yoshua Bengio and Aaron Courville},
+   month = {5},
+   title = {On the Spectral Bias of Neural Networks},
+   url = {http://arxiv.org/abs/1806.08734},
+   year = {2019}
+}
+
+@article{Bock1984,
+title = {A Multiple Shooting Algorithm for Direct Solution of Optimal Control Problems*},
+journal = {IFAC Proceedings Volumes},
+volume = {17},
+number = {2},
+pages = {1603-1608},
+year = {1984},
+note = {9th IFAC World Congress: A Bridge Between Control Science and Technology, Budapest, Hungary, 2-6 July 1984},
+issn = {1474-6670},
+doi = {https://doi.org/10.1016/S1474-6670(17)61205-9},
+url = {https://www.sciencedirect.com/science/article/pii/S1474667017612059},
+author = {H.G. Bock and K.J. Plitt},
+keywords = {Optimal control, numerical methods, nonlinear programming, quadratiC programming, aerospace trajectories, multiple shooting},
+abstract = {An algorithm for the numerical solution of parameterized optimal control problems is presented, which is based on multiple shooting in connection with a recursive quadratic progrmrming technique. A condensing algorithm for the solution of the approximating linearly constrained quadratic subproblems, and high rank update procedures are introduced, which are especially suited for optimal control problems and lead to significant improvements of the convergence behaviour and reductions of computing time and storage requirements. The algorithm is completely derivative-free due to internal numerical differentiation schemes, it can be conveniently combined with indirect multiple shooting. Numerical results are given in the field of aerospace engineering.}
+}
+
+@article{Loshchilov2019,
+   abstract = {L$_2$ regularization and weight decay regularization are equivalent for standard stochastic gradient descent (when rescaled by the learning rate), but as we demonstrate this is \emph\{not\} the case for adaptive gradient algorithms, such as Adam. While common implementations of these algorithms employ L$_2$ regularization (often calling it "weight decay" in what may be misleading due to the inequivalence we expose), we propose a simple modification to recover the original formulation of weight decay regularization by \emph\{decoupling\} the weight decay from the optimization steps taken w.r.t. the loss function. We provide empirical evidence that our proposed modification (i) decouples the optimal choice of weight decay factor from the setting of the learning rate for both standard SGD and Adam and (ii) substantially improves Adam's generalization performance, allowing it to compete with SGD with momentum on image classification datasets (on which it was previously typically outperformed by the latter). Our proposed decoupled weight decay has already been adopted by many researchers, and the community has implemented it in TensorFlow and PyTorch; the complete source code for our experiments is available at https://github.com/loshchil/AdamW-and-SGDW},
+   author = {Ilya Loshchilov and Frank Hutter},
+   month = {1},
+   title = {Decoupled Weight Decay Regularization},
+   url = {http://arxiv.org/abs/1711.05101},
+   year = {2019}
+}
+
+
+@misc{DHPC2024,
+author = {{D}elft {H}igh {P}erformance {C}omputing {C}entre ({DHPC})},
+title = {{D}elft{B}lue {S}upercomputer ({P}hase 2)},
+year = {2024},
+howpublished = {\url{https://www.tudelft.nl/dhpc/ark:/44463/DelftBluePhase2}},
+ark = {ark:/44463/DelftBluePhase2}
+}

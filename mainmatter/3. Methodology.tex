@@ -142,8 +142,16 @@ A Reynolds number of $Re=2500$ is selected for the validation simulation. At thi
 \end{figure}
 \todo{mss hele simulatie in appendix plaatsen}
 
-This makes $Re=2500$ an interesting test case for the surrogate model: the dominant shedding period provides a clear, learnable periodic structure, while the secondary flow features introduce complexity and nonlinearity. This challenges the data-driven approach and motivates the inclusion of physics-informed regularisation and transfer learning capabilities in the framework. Where a lower Reynolds number would produce various length and time scales in the wake, preventing the model from properly testing its ability to capture multi-scale dynamics. While higher Reynolds numbers would introduce a broader spectrum of turbulent scales and further challenge the surrogate model, $Re=2500$ represents a practical upper bound given the computational constraints of this work. Increasing the Reynolds number requires a finer spatial resolution to properly resolve all relevant turbulent structures, which would rapidly increase the memory footprint and simulation wall-time. The full flow field snapshots used to train the ML framework already consume a significant portion of available memory; a further increase in resolution would exceed the practical hardware limitations of the systems used. The chosen Reynolds number, therefore, strikes a balance between flow complexity and computational practicality. 
+This makes $Re=2500$ an interesting test case for the surrogate model: the dominant shedding period provides a clear, learnable periodic structure, while the secondary flow features introduce complexity and nonlinearity. This challenges the data-driven approach and motivates the inclusion of physics-informed regularisation and transfer learning capabilities in the framework. Where a lower Reynolds number would produce various length and time scales in the wake, preventing the model from properly testing its ability to capture multi-scale dynamics. The presence of these additional structures can be seen when plotting the force coefficients over time in Figure~\ref{fig: 256_forces}. 
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/256_forces.pdf}
+    \caption{lift ($C_L$) and drag coefficient ($C_D$) for 2D flow past the circular cylinder at $\mathrm{Re}=2500$, differences in amplitude and higher-frequency oscillations indicate the presence of the secondary vortex structures in the wake}
+    \label{fig: 256_forces}
+\end{figure}
+
+While higher Reynolds numbers would introduce a broader spectrum of turbulent scales and further challenge the surrogate model, $Re=2500$ represents a practical upper bound given the computational constraints of this work. Increasing the Reynolds number requires a finer spatial resolution to properly resolve all relevant turbulent structures, which would rapidly increase the memory footprint and simulation wall-time. The full flow field snapshots used to train the ML framework already consume a significant portion of available memory; a further increase in resolution would exceed the practical hardware limitations of the systems used. The chosen Reynolds number, therefore, strikes a balance between flow complexity and computational practicality. 
 
 % \subsection{Dataset Construction}
 
@@ -154,13 +162,13 @@ This makes $Re=2500$ an interesting test case for the surrogate model: the domin
 \section{Data Preprocessing}
 \label{sect: preprocessing}
 
-Before being passed to the autoencoder, the raw velocity snapshots produced by WaterLily need to be preprocessed to ensure proper inference and generalisability: Removal of ghost cells, assembly of the multi channel input tensor, and per-channel normalization. These steps need to be applied consistently during training, validation and inference processses. 
+Before being passed to the autoencoder, the raw velocity snapshots produced by WaterLily need to be preprocessed to ensure proper inference and generalisability: Removal of ghost cells, assembly of the multi-channel input tensor, and per-channel normalisation. These steps need to be applied consistently across the training, validation, and inference processes. 
 
 
 \subsection{Ghost Cell Removal}
 \label{sect: ghostcells}
 
-WaterLily employs ghost cells at the boundary of the domain to enforce the Biot-Savart boundary conditions. These ghost cells carry values that are not physically meaningful to the flow state observations. Since we want to learn the actual underlying dynamics of the flow and not the boundary conditions, the ghost cells are stripped from the computational domain prior to training. Removing the ghost cells also has the aditional benefit that we are able to keep the amount of interior grid points as a power of 2, which will prove usefull in the parametric construction of the autoencoder. 
+WaterLily employs ghost cells at the domain boundary to enforce the Biot-Savart boundary conditions. These ghost cells carry values that are not physically meaningful to the flow state observations. Since we want to learn the actual underlying dynamics of the flow rather than the boundary conditions, the ghost cells are removed from the computational domain prior to training. Removing the ghost cells also has the aditional benefit that we are able to keep the amount of interior grid points as a power of 2, which will prove usefull in the parametric construction of the autoencoder. 
 
 \begin{figure}[H]
     \centering
@@ -462,17 +470,124 @@ In the decoder, the decompression blocks halve the channel count while doubling 
 
 Batch normalisation is not included in the decoder, because the goal of the decoder is to reconstruct a specific physical field with known statistics (like divergence, kinetic energy or mean velocity), and it thus should not regularise the intermediate feature maps as it would interfere with the correct reconstruction of the learned flow states. 
 
+The full layer-by-layer specification of the autoencoder visualised in Figure~\ref{fig: AE} is summarised in \autoref{tab: AE_params}. The dense bottleneck layers account for approximately 95\% of the total parameter count, reflecting the high dimensionality of the flattened feature maps relative to the latent space.
+
+\begin{table}[H]
+\centering
+\caption{Layer-by-layer summary of the autoencoder architecture. Spatial dimensions 
+refer to the feature map size after each operation. The total number of trainable 
+parameters is 17\,638\,548.}
+\label{tab: AE_params}
+\small
+\begin{tabular}{llrrr}
+\toprule
+\textbf{Component} & \textbf{Layer} & \textbf{Output size} & \textbf{Parameters} \\
+\midrule
+\multicolumn{4}{l}{\textit{Encoder}} \\
+Input           &                                   & $256\times256\times4$   &           \\
+Block 1         & Conv $3\times3$, ReLU, MaxPool     & $128\times128\times8$   & 296       \\
+Block 2         & Conv $3\times3$, BN, ReLU, MaxPool & $64\times64\times16$    & 1\,200    \\
+Block 3         & Conv $3\times3$, BN, ReLU, MaxPool & $32\times32\times32$    & 4\,704    \\
+Block 4         & Conv $3\times3$, BN, ReLU, MaxPool & $16\times16\times64$    & 18\,624   \\
+Block 5         & Conv $3\times3$, BN, ReLU, MaxPool & $8\times8\times128$     & 74\,112   \\
+Block 6         & Conv $3\times3$, ReLU, MaxPool      & $4\times4\times256$     & 295\,168  \\
+Flatten         &                                   & $4096$                  &           \\
+Dense 1         & Linear, ReLU                      & $2048$                  & 8\,390\,656 \\
+Dense 2         & Linear                            & $16$                    & 32\,784   \\
+\midrule
+\multicolumn{4}{l}{\textit{Latent space $\mathbf{z} \in \mathbb{R}^{16}$}} \\
+\midrule
+\multicolumn{4}{l}{\textit{Decoder}} \\
+Dense 3         & Linear, ReLU                      & $2048$                  & 34\,816   \\
+Dense 4         & Linear, Reshape                   & $4\times4\times256$     & 8\,392\,704 \\
+Block 7         & Upsample, Conv $3\times3$, GELU   & $8\times8\times128$     & 295\,040  \\
+Block 8         & Upsample, Conv $3\times3$, GELU   & $16\times16\times64$    & 73\,792   \\
+Block 9         & Upsample, Conv $3\times3$, GELU   & $32\times32\times32$    & 18\,464   \\
+Block 10        & Upsample, Conv $3\times3$, GELU   & $64\times64\times16$    & 4\,624    \\
+Block 11        & Upsample, Conv $3\times3$, GELU   & $128\times128\times8$   & 1\,160    \\
+Block 12        & Upsample, Conv $3\times3$, GELU   & $256\times256\times4$   & 292       \\
+Projection      & Conv $3\times3$                   & $256\times256\times2$   & 74        \\
+Smoothing       & Conv $3\times3$                   & $256\times256\times2$   & 38        \\
+\midrule
+\textbf{Total}  &                                   &                         & \textbf{17\,638\,548} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Loss Function}
 \label{sect: AEloss}
+Following the physics-informed surrogate models introduced in \ref{subsect: data driven ROMS}, the autoencoder in this work is trained by minimising a composite loss function \ref{eq: AE_loss} that combines a reconstruction accuracy term with two physics-based regularisers derived from the physical and numerical properties of the simulation we are aiming to enhance. 
+
+\begin{equation}\label{eq: AE_loss}
+    \mathcal{L}_\text{AE} 
+    = \mathcal{L}_\text{rec} 
+    + \lambda_\text{div}\,\mathcal{L}_\text{div} 
+    + \lambda_\text{curl}\,\mathcal{L}_\text{curl}
+\end{equation}
+
+The reconstruction loss $\mathcal{L}_\text{AE}$ measures the pointwise accuracy of the encoded and decoded velocity field against the reference field $\mathbf{u}$ produced by WaterLily.
+
+\begin{equation}\label{eq: rec_loss}
+    \mathcal{L}_\text{rec}
+    = \bigl\langle
+        \bigl\| \mathbf{u} - \psi_\theta(\varphi_\theta(\mathbf{u})) \bigr\|
+      \bigr\rangle
+\end{equation}
+
+Where $\|\cdot\|$ denotes a general norm like L1 or L2 over all spatial locations and velocity components, and $\langle \cdot \rangle$ denotes an average over the available data during training. The reconstruction target is the $N_u$ dimensional velocity field $\mathbf{u}$; the kernel moment $\boldsymbol{\mu_0}$ is excluded from the target since it is a static geometric field fully determined by the signed-distance function and carries no temporal dynamics that the autoencoder needs to learn.
+
+The divergence loss $\mathcal{L}_\text{div}$ regularises the autoencoder to respect the incompressibility constraint~\ref{eq: continuity} in the reconstructed velocity field, and is computed as the mean squared divergence over the interior domain: 
+
+\begin{equation}\label{eq: div_loss}
+    \mathcal{L}_\text{div}
+    = \left\langle
+        \left\| \frac{\partial \hat{u}_i}{\partial x_i} \right\|_2^2
+      \right\rangle
+\end{equation}
+
+Here, divergence is discretised using the same second-order central differences scheme as WaterLily's internal finite-volume scheme. Since WaterLily is an incompressible solver, we know that the divergence of the reconstructed velocity field should be equal to zero. By penalising the autoencoder for violating mass conservation, we know that the compressed latent trajectories, on which the neural ODE is trained, will contain minimal residual information that could lead to mass conservation violations. This is especially important during later inference rollouts, as these latent divergence residuals could accumulate, leading to reconstructed flow states that massively violate mass conservation.
+
+The vorticity loss $\mathcal{L}_\text{curl}$ penalises differences between the vorticity of the reference and reconstructed velocity fields:
+
+\begin{equation}\label{eq: curl_loss}
+    \mathcal{L}_\text{curl}
+    = \left\langle
+        \left\| \omega - \hat{\omega} \right\|_2^2
+      \right\rangle,
+    \qquad
+    \omega = \frac{\partial u_j}{\partial x_i} - \frac{\partial u_i}{\partial x_j}
+\end{equation}
+
+Where $\hat{\omega}$ denotes the vorticity of the reconstructed flow snapshot $\mathbf{\hat{u}}$. The inclusion of the vorticity loss serves 2 purposes. First, the vorticity $\omega$ is constructed from the off-diagonal components of the velocity gradient tensor, $\partial u_i / \partial x_j$ and $\partial u_j / \partial x_i$, which are important for shear related phenomana in the flow. Without imposing an explicit penalty on these off-diagonal derivatives, the autoencoder can struggle to accurately reconstruct the sharp gradients that define the shed vortices and the boundary-layer separation near the cylinder surface. Secondly, the Biot-Savart boundary conditions rely on the fluid's vorticity to determine the velocity at the domain boundary. By training the autoencoder to accurately reconstruct the vorticity of a flow snapshot, the decoded velocity fields are more likely to produce boundary-consistent ghost-cell values when the Biot-Savart conditions are re-applied during the hybrid solver workflow described in \autoref{sect: coupling}. \todo{mss later reference fixing}
+
+The weights $\lambda_\text{div}$ and $\lambda_\text{curl}$ are tunable hyperparameters that control the relative importance of each physics constraint during training. Setting them too low could allow the autoencoder to minimise the reconstruction loss without respecting the flow's physics. Setting them too high biases the optimiser toward the physics terms, potentially degrading pointwise accuracy. The choice of these weights thus involves a balance: they should be large enough to regularise the latent trajectories and produce physically relevant reconstructions, but not so large that they dominate the loss landscape and prevent the reconstruction term from driving the network to learn finer-scale flow features.  
 
 
-
-% Reconstruction loss: L1 / L2 / Charbonnier (configurable via :loss symbol).
-% Physics regularizers: divergence loss (λ_div = 1000), curl loss (λ_curl = 100), strain loss (λ_strain).
-% Justify the relative weighting of each term.
 
 \subsection{Training Setup}
 \label{sect: AEtraining}
+
+% Since the framework in this thesis is designed to run in line with a running WaterLily simulation, the autoencoder is trained on a range of snapshots from the same simulation. Where the gathered snapshots are split temporally first, according to the preset run time of the simulation $t_\text{run}$, then all snapshots with $t^* < t^*_\text{train}$ form the training and validation pool, from which $N_\text{train}$ snapshots are sampled at uniform temporal spacing; an additional $20\%$ of these are held out as a validation set for epoch-level monitoring. The remaining snapshots are drawn exclusively from $t_\text{run} > t^* \geq t^*_\text{train}$, and form a held-out test set used to assess generalisation beyond the training horizon. 
+
+
+Since the framework in this thesis is designed to run in line with a running WaterLily simulation, the autoencoder is trained on a range of snapshots from that simulation. Where the gathered snapshots are split temporally first, according to the preset run time of the simulation $t_\text{run}$, then all snapshots with $t^* < t^*_\text{train}$ form the training and validation pool. A temporal split was chosen over a random split because the latter would have allowed snapshots that are separated by less than a fraction of a shedding period to be assigned to different splits; given the strong periodicity of the flow, such near-duplicate pairs would cause the validation and test errors to collapse onto the training error and limit any proper analysis of the loss of generalisation beyond the training horizon. From the training and validation pool, $N_\text{train}$ snapshots are sampled at uniform temporal spacing, of which an additional $20\%$ are held out as a validation set for epoch-level monitoring. The remaining snapshots are drawn exclusively from $t^*_\text{train} \leq t^* < t_\text{run}$, and form a held-out test set used to assess generalisation beyond the training horizon. The absolute number of snapshots in the training can be kept modest because the relevant metric of dataset quality is not the number of snapshots, but rather the number of distinct phases of the shedding cycle covered, the training window in figure~\ref{fig: train_force_split} shows how $t^*_\text{train}$ was set to include 4 main shedding cycles to ensure that sufficient temporal and spatial scales are present in the training data. 
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/train_force_split.pdf}
+    \caption{}
+    \label{fig: train_force_split}
+\end{figure}
+
+
+
+
+During training, the network weights $\theta$ are optimised using AdamW~\cite{Loshchilov2019}. Important to note is that the encoder and decoder are optimised at the same time and thus share the same network weights, only after training is finished are the encoder and decoder treated as seperate transformations. The learning rate is set according to the training regime, be it initial training or transfer learning training, with a decoupled weight decay of $\lambda = 9 \cdot 10^{-4}$, and gradients are computed via reverse-mode automatic differentiation using \texttt{Zygote.jl}. Mini-batches of $16$ snapshots are used to ensure smooth convergence of the loss function, and to save memory on the GPU. All tensors are stored in single precision (\texttt{Float32}) and training is performed on a single NVIDIA GPU on the DelftBlue HPC cluster \cite{DHPC2024}. 
+
+
+% To ensure reproducibility, all random number generators are seeded with a fixed value ($\text{seed} = 42$), and the full hyperparameter configuration is serialised alongside the network parameters and the per-channel normalisation statistics into a single \texttt{JLD2} checkpoint at the end of training. The same checkpoint is later reloaded for inference and for the transfer-learning stages described in Section~\ref{sect: AEvalidation}.
+
 
 % Optimizer: Adam, η = 1e-3, weight decay λ = 9e-4.
 % Batch size: 16; epochs: 1000; validation split: 20\%.
@@ -491,23 +606,157 @@ Batch normalisation is not included in the decoder, because the goal of the deco
 \section{Neural ODE}
 \label{sect: NODE}
 
-% Learning latent-space dynamics operating entirely on AE-encoded trajectories.
+After having trained the autoencoder, each instantaneous flow field can be compressed to the low-dimensional latent space: $\mathbf{z} = \varphi_\theta(\mathbf{x}_\text{in}) \in \mathbb{R}^{N_z}$. Compressing each available snapshot in the training set in time-ordered fashion at a fixed discrete time interval $\Delta t$ (i.e., $ \mathcal{T}_{z,i} = \varphi_\theta(\mathcal{T}_{u,i}$, where $\mathcal{T}_{u,i}$ is a trajectory of full-order states) produces a sequence of latent vectors that serves as the ground truth on which the neural ODE can be trained: 
+
+
+\begin{equation}\label{eq: latent_traj}
+    \mathcal{T}_{z,i} = [\mathbf{z}(t_{0,i}),\, \mathbf{z}(t_{0,i} + \Delta t),\, \mathbf{z}(t_{0,i} + 2\Delta t),\, \ldots,\, \mathbf{z}(t_{0,i} + n_{t,i}\Delta t)], \quad i = 1, \ldots, N_T, \quad t_{\text{train}, i} = n_{t,i}\Delta t
+\end{equation}
+
+
+Where $N_T$ represents the total number of ground truth trajectories of the same system, $n_{t, i}$ and  $t_{0, i}$ denote the training trajectory length and the start time of a specific trajectory $i$, respectively, and $t_{\text{train},i}=n_{t,i}\,\Delta t$ is the corresponding trajectory duration in physical time. An example of these resulting latent trajectories is shown in Figure~\ref{fig: latent_traj} for four representative components. The latent trajectories typically consist of one or more dominant modes, such as $z_1$ and $z_4$, which exhibit a clear period behaviour that corresponds to vortex shedding frequency visible in the force history of \autoref{fig: 256_forces}. Less dominant modes such as $z_4$ and $z_{12}$ carry lower amplitudes and contain more complex frequency content that correspond to secondary vortex structures and irregular frequencies visible in figures \ref{fig: vortex_shedding} and \ref{fig: 256_forces} respectively. 
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/Methodology/latent_trajectories.pdf}
+    \caption{Representative latent components of the encoded training data over 4 shedding periods at $\mathrm{Re}=2500$. The quasi-periodic structure reflects the vortex shedding cycle captured by the autoencoder.}
+    \label{fig: latent_traj}
+\end{figure}
+
+The neural ODE is tasked with learning the dynamics of this trajectory so it can integrate it forward in time. As introduced in \label{subsubsect: NODEs}, the Neural ODE parametrises the time derivative of the latent state with a neural network, so that future latent states are obtained by integrating \ref{eq: latent_NODE} from a known initial condition ($\mathbf{z}(t_{0, i})$) with a standard ODE solver
+
+\begin{equation}\label{eq: latent_NODE}
+    \frac{d\mathbf{z}(t)}{dt} = f_\phi(\mathbf{z}(t)), \qquad \mathbf{z}(t_0) = \varphi_\theta(\mathbf{x}_\text{in}(t_0)).
+\end{equation}
+
+In \ref{eq: latent_NODE} $f_\phi$ is a neural network with trainable parameters $\phi$. Given an initial condition $\mathbf{z}(t_0)$, a conventional time integrator can be used to find the latent state $\tilde{\mathbf{z}}(t)$ at any desired time $t$. This means that, for the neural ode defined above, a predicted latent trajectory can be produced that is analogous to the ground-truth trajectory in \ref{eq: latent_traj} and starts at the same initial condition \cite{Nair2024}. 
+
+\begin{equation}\label{eq: latent_traj_pred}
+    \tilde{\mathcal{T}}_{z,i} = [\tilde{\mathbf{z}}(t_{0,i}),\, \tilde{\mathbf{z}}(t_{0,i} + \Delta t),\, \tilde{\mathbf{z}}(t_{0,i} + 2\Delta t),\, \ldots,\, \tilde{\mathbf{z}}(t_{0,i} + n_{t,i}\Delta t)], \quad i = 1, \ldots, N_T,
+\end{equation}
+
+Because $N_z \ll N_x N_y N_u$, the time integration operates on a low-dimensional ODE rather than the original discretised Navier-Stokes system, making both training and inference computationally inexpensive. The following subsections highlight the architecture of $f_\phi$, the multiple-shooting training strategy used to stabilise learning over long trajectories, and the validation procedure applied to the resulting latent dynamics model.
+
 
 \subsection{Architecture}
 \label{sect: NODEarch}
+
+The right-hand side of \autoref{eq: latent_NODE} is parametrised by the fully-connected neural network $f_\theta$. This MLP is deliberately kept compact, since the autoencoder has already distilled the flow states into a low-dimensional representation; a small network suffices to learn the latent dynamics. This has the added benefit of having a low computational cost during both training and time integration. A schematic of the network architecture is shown in \autoref{fig: NODE_arch}.
+
+ \begin{figure}[H]
+    \centering
+    \input{figures/Methodology/node_architecture.tex}
+    \caption{Architecture of the Neural ODE right-hand side $f_\phi(\mathbf{z})$}
+    \label{fig: NODE_arch}
+\end{figure}
+
+\todo{nog iets over activation function schrijven}
+
+Given an initial condition $\mathbf{z}(t_0) = \varphi_\theta(\mathbf{x}_\text{in}(t_0))$, future latent states are obtained by numerically integrating \autoref{eq: latent_NODE} with a common numerical ODE solver like the Tsitouras 5th-order Runge--Kutta method (\texttt{Tsit5}). 
 
 % ODE function: fully-connected network latent_dim → (dense_mult × latent_dim) → latent_dim.
 % dense_mult = 3, activation = tanhshrink.
 % Justify depth, width, and activation function choice.
 
-\subsection{ODE Solver}
-\label{sect: solver}
+% \subsection{ODE Solver}
+% \label{sect: solver}
 
 % Tsit5 adaptive solver; reltol = 1e-4, abstol = 1e-6.
 % Justify choice of adaptive solver for stiff-free latent dynamics.
 
 \subsection{Training with Multiple Shooting}
 \label{sect: NODEtraining}
+
+The parameters $\phi$ of the feed-forward network $f_\phi$ in the neural ODE are typically optimised by minimising an objective function, like the mean squared error, between the ground truth trajectories $\mathcal{T}_{z,i}$ and the predicted trajectories $\tilde{\mathcal{T}}_{z,i}$ during the training stage using a standard optimiser like \texttt{AdamW}. This objective function would then be given by:
+
+\begin{equation}\label{eq: node_loss_naive}
+    \mathcal{L}_{\text{NODE}} = \left\langle \frac{1}{n_{t}} \sum_{j=1}^{n_{t}} \left\| \mathbf{z}(t_{0} + j\Delta t) - \tilde{\mathbf{z}}(t_{0} + j\Delta t) \right\|_2^2 \right\rangle
+\end{equation}
+
+Where $\langle \cdot \rangle$ denotes the average over all available training trajectories $N_T$ and the inner sum accumulates the per-snapshot reconstruction error. Training the neural ODE by directly minimising~\eqref{eq: node_loss_naive} requires integrating the full latent trajectory from a single initial condition $\tilde{\mathbf{z}}(t_{0,i})$ and back-propagating through the entire rollout is conceptually the simplest approach. It fails reliably over longer rollouts required to capture a sufficient number of shedding cycles in the regime considered here.
+
+This approach, called single shooting, fails because the optimiser must simultaneously select parameters $\phi$ that fit the predicted trajectory to every snapshot along its full length~\cite{Turan2022}. For oscillatory problems or long rollouts, this is a difficult optimisation problem with many local minima. Additionally, neural networks exhibit a spectral bias during gradient descent training, leading to the fact that low-frequency components of the target function are learned more easily than high-frequency ones \cite{Rahaman2019}. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/trajectories.pdf}
+    \caption{Single-shooting training of the neural ODE on a representative latent trajectory at $\mathrm{Re} = 2500$, displaying 4 latent components. Illustrating the failure mode single-shooting suffers from during long rollouts}
+    \label{fig: singleshoot}
+\end{figure}
+
+Figure~\ref{fig: singleshoot} shows how the learned latent trajectory gets stuck learning the complex, multi-frequency latent dynamics when operating in a single-shooting fashion. 
+
+To avoid this failure mode of the single shooting, the neural ODE is trained using \emph{multiple shooting}, a method originally developed for boundary-value problems in numerical analysis~\cite{Bock1984} and adapted to neural ODEs by~\textcite{Turan2022}. The central idea is to replace the single, long integration required by single-shooting with several short, independent integrations whose endpoints are constrained to overlap. A specific trajectory $\mathcal{T}_{z}$, spanning $[t_{0},\, t_{\text{train}}]$, is partitioned into $N_{s}+1$ shorter intervals by introducing a grid of shooting points $t_{0} = \tau_0 < \tau_1 < \dots < \tau_{N_{s}} = t_\text{train} $, where each shooting group exists of $n_s$ samples of $\mathcal{T}_z$. At each interval, the neural ODE is integrated as an independent initial-value problem, with its initial condition treated as an additional optimisation variable. Figure \ref{fig: multiple_shoot_example} shows how the trajectory $\tilde{\mathcal{T}}_{z}$ is therefore allowed to be discontinuous across interval boundaries during training, and the resulting shooting gaps. 
+
+\begin{figure}[H]
+    \centering
+    \input{figures/Methodology/multiple_shooting}
+    \caption{Multiple shooting schematic, showing the shooting gaps that need to be minimised during training, adapted from \textcite{Turan2022}}
+    \label{fig: multiple_shoot_example}
+\end{figure}
+
+
+The learned trajectory becomes meaningful only if the shooting gaps between the beginning and end points of each segment are minimised to zero, meaning that the following constraint needs to be satisfied: 
+
+\begin{equation}\label{eq: shooting_constraint}
+    \tilde{\mathbf{z}}^{(s)}_f - \tilde{\mathbf{z}}^{(s+1)}_0 = 0, \qquad s = 1, \dots, N_{s,i},
+\end{equation}
+
+Supervised learning of neural networks is typically performed by optimising an unconstrained problem, which is related to the constrained optimisation problem \cite{Turan2022}. A common approach is to define a proxy cost function, $\mathcal{L}_{\text{ms}}$, which has the constraints as penalty terms:
+
+\begin{equation}\label{eq: node_loss_ms}
+    \mathcal{L}_{\text{ms}}
+    = \left\langle
+        \sum_{s=1}^{N_{s}+1} \sum_{j=1}^{n_s}
+            \left\| \mathbf{z}^{(s)}_j - \tilde{\mathbf{z}}^{(s)}_j \right\|_2^2
+        \;+\; \lambda_c \sum_{s=1}^{N_{s}}
+            \left\| \tilde{\mathbf{z}}^{(s)}_f - \tilde{\mathbf{z}}^{(s+1)}_0 \right\|_2^2
+      \right\rangle ,
+\end{equation}
+
+The first term is a cost function similar to \ref{eq: node_loss_naive}, but instead of calculating the loss over each sample in the trajectory, this term is a per-segment fit that is summed over all segments and their $n_s$ latent vectors. The second term is the \emph{continuity penalty}, weighted by $\lambda_c$, that drives the shooting gaps in~\eqref{eq: shooting_constraint} toward zero. The continuity weight $\lambda_c$ controls the trade-off between segment-wise accuracy and global trajectory coherence. It is typically set to a large value to ensure continuity, but remains a hyperparameter that needs to be tuned, as a too-large $\lambda_c$ can cause numerical issues, while a too-small $\lambda_c$ can lead to constraint violation. 
+
+In practice, the implementation of \textcite{Turan2022} that is available in \texttt{DiffEqFlux.jl} was used in this work, in which the shooting initial conditions $\tilde{\mathbf{z}}^{(s)}_0$ are not free variables but are pinned to the ground-truth latents $\mathbf{z}^{(s)}_0$ at every iteration.  The continuity penalty in~\eqref{eq: node_loss_ms} therefore acts between the integrated endpoint $\tilde{\mathbf{z}}^{(s)}_f$ of segment $s$ and the data initial condition $\mathbf{z}^{(s+1)}_0$ of segment $s{+}1$. Figure~\ref{fig: ms_epochs} shows how the segments are fitted to the ground truth latent trajectories. 
+
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Methodology/0_trajectories.pdf}
+    \caption{Epoch 0: untrained network; predicted segments are nearly flat and shooting discontinuities span the full amplitude of $z$.}
+    \label{fig: ms_epoch0}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Methodology/20_trajectories.pdf}
+    \caption{Epoch 20: segments begin to track the reference oscillation, but visible jumps remain at every group boundary.}        
+    \label{fig: ms_epoch20}
+    \end{subfigure}
+
+    \vspace{0.8em}
+
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Methodology/100_trajectories.pdf}
+        \caption{Epoch 100: shooting discontinuities begin to close, although further refinement is still needed. }
+        \label{fig: ms_epoch100}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Methodology/250_trajectories.pdf}
+    \caption{Epoch 250: converged trajectory; predicted and reference curves overlap to within line width across the full horizon.}        
+    \label{fig: ms_epoch250}
+    \end{subfigure}
+    \caption{Evolution of the multiple shooting latent trajectory during training. The reference trajectory $z_\mathrm{ref}$ (solid) is compared to the predicted trajectory $\tilde{z}_\mathrm{pred}$ (dashed) at four stages of training.}
+    \label{fig: ms_epochs}
+\end{figure}
+
+\todo{show rollout plot over longer horizon to show drifting of NODE}
+
 
 % Multiple shooting: group_size = 20, continuity_term = 200.
 % Optimizer: AdamW, η = 0.01; maxiters = 250.
@@ -516,6 +765,9 @@ Batch normalisation is not included in the decoder, because the goal of the deco
 
 \subsection{Validation}
 \label{sect: NODEvalidation}
+
+\todo{begin as soon as delftblue is up and running again.}
+% show influence of epochs on rollout accuracy, show influence of group size, 
 
 % Short- and long-horizon rollout error on held-out latent trajectories.
 % Comparison against trivial baselines (e.g., last-state extrapolation, linear interpolation).
