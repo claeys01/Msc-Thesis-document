@@ -1,0 +1,191 @@
+\begin{tikzpicture}[
+    %---------------------------------------------------------------
+    % --- GLOBAL STYLE: edit colours and sizes here ----------------
+    %---------------------------------------------------------------
+    encoder color/.style    = {draw=teal!70,    fill=teal!15},
+    decoder color/.style    = {draw=teal!70,    fill=teal!10},
+    vector color/.style     = {draw=blue!60,    fill=blue!30},
+    vector out color/.style = {draw=teal!70,    fill=teal!40},
+    node box color/.style   = {draw=gray!60,    fill=gray!10},
+    ood color/.style        = {draw=cyan!60,    fill=cyan!20},
+    %
+    % --- SHAPE TEMPLATES ------------------------------------------
+    fieldvec/.style = {
+        rectangle, minimum width=0.2cm, minimum height=\fieldH,
+        thick
+    },
+    latentvec/.style = {
+        rectangle, minimum width=0.2cm, minimum height=\latentH,
+        thick
+    },
+    nodebox/.style = {
+        rectangle, rounded corners=2pt, minimum width=4.5cm, minimum height=2cm,
+        node box color, thick
+    },
+    oodbox/.style = {
+        rectangle, rounded corners=1pt, minimum width=1cm, minimum height=\latentH,
+        ood color, thick, align=center, font=\scriptsize
+    },
+    %
+    % --- ARROWS ---------------------------------------------------
+    flow/.style       = {-{Stealth[length=2.5mm]}, thick},
+    feedback/.style   = {-{Stealth[length=2.5mm]}, thick, dashed, gray},
+    flow internal/.style = {-{Stealth[length=1.4mm]}, semithick, gray},
+    %
+    % --- SPACING --------------------------------------------------
+    node distance = 4mm
+]
+
+%---------------------------------------------------------------
+% --- DIMENSIONS (single source of truth) ----------------------
+%---------------------------------------------------------------
+\def\fieldH{2.4cm}      % height of input/output velocity-field bars
+\def\latentH{1.4cm}     % height of latent vector bars
+\def\trapDepth{1.4cm}   % horizontal depth (slant length) of encoder/decoder
+
+%---------------------------------------------------------------
+% --- ENCODER / DECODER MACROS ---------------------------------
+%---------------------------------------------------------------
+% \encoder{name}{(x,y) of wide-side centre}
+\newcommand{\encoder}[2]{%
+    \coordinate (#1-west)   at #2;
+    \coordinate (#1-wtop)   at ($#2 + (0, 0.5*\fieldH)$);
+    \coordinate (#1-wbot)   at ($#2 + (0,-0.5*\fieldH)$);
+    \coordinate (#1-ntop)   at ($#2 + (\trapDepth, 0.5*\latentH)$);
+    \coordinate (#1-nbot)   at ($#2 + (\trapDepth,-0.5*\latentH)$);
+    \coordinate (#1-east)   at ($#2 + (\trapDepth, 0)$);
+    \coordinate (#1-center) at ($#2 + (0.5*\trapDepth, 0)$);
+    \draw[encoder color, thick]
+        (#1-wtop) -- (#1-ntop) -- (#1-nbot) -- (#1-wbot) -- cycle;
+}
+% \decoder{name}{(x,y) of narrow-side centre}  (mirror of encoder)
+\newcommand{\decoder}[2]{%
+    \coordinate (#1-west)   at #2;
+    \coordinate (#1-ntop)   at ($#2 + (0, 0.5*\latentH)$);
+    \coordinate (#1-nbot)   at ($#2 + (0,-0.5*\latentH)$);
+    \coordinate (#1-wtop)   at ($#2 + (\trapDepth, 0.5*\fieldH)$);
+    \coordinate (#1-wbot)   at ($#2 + (\trapDepth,-0.5*\fieldH)$);
+    \coordinate (#1-east)   at ($#2 + (\trapDepth, 0)$);
+    \coordinate (#1-center) at ($#2 + (0.5*\trapDepth, 0)$);
+    \draw[decoder color, thick]
+        (#1-ntop) -- (#1-wtop) -- (#1-wbot) -- (#1-nbot) -- cycle;
+}
+
+%---------------------------------------------------------------
+% --- NODES ----------------------------------------------------
+%---------------------------------------------------------------
+% input velocity field
+\node[fieldvec, vector color] (u0) at (0,0) {};
+\node[above=1mm of u0] {$\boldsymbol{u}, \boldsymbol{\mu}_0$};
+
+% encoder (wide side aligned with u0)
+\encoder{enc}{($(u0.east) + (4mm,0)$)}
+\node at (enc-center) {$\varphi_\theta$};
+\node[below=4mm] at (enc-nbot -| enc-center) {\small Encoder};
+
+% latent vector at t=0
+\node[latentvec, vector color, right=4mm of enc-east, anchor=west] (z0) {};
+\node[above=1mm of z0] {$\boldsymbol{z}$};
+
+% Neural ODE box
+\node[nodebox, right=6mm of z0] (node) {};
+\node[below=1mm of node] {\small Latent NODE};
+
+% inside the NODE box: a small "MLP" placeholder and a solver placeholder
+
+% --- inside the NODE box: miniature fully-connected MLP -------
+\begin{scope}[shift={($(node.west)+(0.35,0)$)}, scale=0.22, transform shape]
+    \tikzset{neuron/.style={circle, fill=black, minimum size=8pt, inner sep=0pt}}
+    % parameters
+    \def\neuronspacing{0.5}
+    \def\nInput{5}
+    \def\nHiddenA{9}
+    \def\nHiddenB{9}
+    \def\nOutput{5}
+    \def\xInput{0}
+    \def\xHiddenA{1.8}
+    \def\xHiddenB{3.6}
+    \def\xOutput{5.4}
+    % neurons
+    \foreach \i in {1,...,\nInput} {
+        \pgfmathsetmacro{\ypos}{(\nInput-1)*\neuronspacing/2 - (\i-1)*\neuronspacing}
+        \node[neuron] (mlp-I-\i) at (\xInput, \ypos) {};
+    }
+    \foreach \i in {1,...,\nHiddenA} {
+        \pgfmathsetmacro{\ypos}{(\nHiddenA-1)*\neuronspacing/2 - (\i-1)*\neuronspacing}
+        \node[neuron] (mlp-HA-\i) at (\xHiddenA, \ypos) {};
+    }
+    \foreach \i in {1,...,\nHiddenB} {
+        \pgfmathsetmacro{\ypos}{(\nHiddenB-1)*\neuronspacing/2 - (\i-1)*\neuronspacing}
+        \node[neuron] (mlp-HB-\i) at (\xHiddenB, \ypos) {};
+    }
+    \foreach \i in {1,...,\nOutput} {
+        \pgfmathsetmacro{\ypos}{(\nOutput-1)*\neuronspacing/2 - (\i-1)*\neuronspacing}
+        \node[neuron] (mlp-O-\i) at (\xOutput, \ypos) {};
+    }
+    % connections: Input -> Hidden A
+    \foreach \i in {1,...,\nInput} {
+        \foreach \j in {1,...,\nHiddenA} {
+            \draw[gray!50, thin] (mlp-I-\i) -- (mlp-HA-\j);
+        }
+    }
+    % dotted skip between hidden layers
+    \draw[thick, dotted] (mlp-HA-5.east) -- (mlp-HB-5.west);
+    % Hidden B -> Output
+    \foreach \i in {1,...,\nHiddenB} {
+        \foreach \j in {1,...,\nOutput} {
+            \draw[gray!50, thin] (mlp-HB-\i) -- (mlp-O-\j);
+        }
+    }
+\end{scope}
+
+% small label above the MLP
+\node[font=\scriptsize] at ($(node.west)+(0.9,0.75)$) {$f_\phi(\mathbf{z})$};
+
+% Solve box on the right (unchanged from before)
+\node[draw=gray!70, fill=white, rounded corners=1pt,
+      minimum width=8mm, minimum height=5mm, font=\scriptsize]
+      (solver) at ($(node.east)+(-0.8,0)$) {Solve};
+
+\coordinate (mlp-out) at ($(node.west)+(1.65,0)$);
+
+% (replace the existing dzdt label with this named version)
+\node[font=\scriptsize] (dzdt) at ($(node.west)+(2.5,0)$) {$\dfrac{d\mathbf{z}(t)}{dt}$};
+
+% (add the two new arrows)
+\draw[flow internal] (mlp-out)   -- (dzdt.west);
+\draw[flow internal] (dzdt.east) -- (solver.west);
+
+
+% latent vector at t
+\node[latentvec, vector out color, right=6mm of node] (zt) {};
+\node[above=1mm of zt] {$\tilde{\boldsymbol{z}}$};
+
+% OOD gate
+\node[oodbox, right=of zt] (ood) {KNN\\OOD};
+
+% decoder (narrow side aligned with ood)
+\decoder{dec}{($(ood.east) + (4mm,0)$)}
+\node at (dec-center) {$\psi_\theta$};
+\node[below=4mm] at (dec-nbot -| dec-center) {\small Decoder};
+
+% output velocity field
+\node[fieldvec, vector out color, right=4mm of dec-east, anchor=west] (ut) {};
+\node[above=1mm of ut] {$\hat{\boldsymbol{u}}$};
+
+%---------------------------------------------------------------
+% --- ARROWS ---------------------------------------------------
+%---------------------------------------------------------------
+\draw[flow] (u0)       -- (enc-west);
+\draw[flow] (enc-east) -- (z0);
+\draw[flow] (z0)       -- (node);
+\draw[flow] (node)     -- (zt);
+\draw[flow] (zt)       -- (ood);
+\draw[flow] (ood)      -- (dec-west);
+\draw[flow] (dec-east) -- (ut);
+
+% feedback / fallback path from OOD back to z0 (dashed)
+\draw[feedback]
+    (ood.north) -- ++(0,0.9) -| (z0.north);
+
+\end{tikzpicture}

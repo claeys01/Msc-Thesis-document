@@ -40,7 +40,7 @@
     linkcolor=blue,
     citecolor=blue,
     urlcolor=blue, 
-    pdftitle={Literature Review Matthias Claeys},
+    pdftitle={Thesis - Matthias Claeys},
     pdfauthor={Matthias Claeys},
     pdfcreator={Matthias Claeys},]{hyperref} % Extensive support for hypertext
 \RequirePackage[noabbrev]{cleveref} % Intelligent cross-referencing

@@ -1,18 +1,34 @@
 \chapter{Methodology}
 \label{chap: Methodology}
 
-This chapter describes the full methodology used to develop and evaluate the machine-learning-based acceleration framework for accelerating CFD simulations. The approach combines a convolutional autoencoder (AE), a Neural Ordinary Differential Equation (NODE) and a KNN integration monitor to learn and evolve low-dimensional representations of turbulent flow fields. This chapter will begin with highlighting the simulation setup used to develop the framework, where it will explain the numerical solver, boundary conditions and simulation dimensions. Following this the AE, NODE and KNN integration monitor will be explained together with their design choices.
+This chapter describes the full methodology used to develop and evaluate the machine-learning-based acceleration framework for accelerating CFD simulations. The approach combines a convolutional autoencoder (AE), a Neural Ordinary Differential Equation (NODE) and a KNN integration monitor to learn and evolve low-dimensional representations of turbulent flow fields. This chapter will begin by highlighting the simulation setup used to develop the framework, explaining the numerical solver, boundary conditions, and simulation dimensions. Following this, the AE, NODE, and KNN integration monitor will be explained, along with their design choices.
 
 % -----------------------------------------------------------------------
-\section{Proposed framework}
-\label{sect: proposed framework}
+\section{Framework Overview}
+\label{sect: Framework Overview}
 
-\todo{show drawing of AENODE architecture}
-% give a global overlook of the framework that i developped AE, node, knn ood, and waterlily
+The framework developed in this thesis replaces the time integration of the discretised Navier--Stokes equations \eqref{eq: WaterLilyMomentum} with that of a low-dimensional latent state of said equations. Profiling of the solver loop of the WaterLily simulation environment showed that the pressure projection and convection--diffusion routines are the most costly steps in the loop, and both scale with the total number of degrees of freedom $N_x N_y N_u$ \cite{Weymouth2025}. Compressing the flow state to a latent vector of dimension $N_z \ll N_x N_y N_u$ and integrating it in time with a learned ODE offers a direct route to acceleration, provided that the latent state captures the relevant dynamics and that the surrogate model is used during regimes where it can be trusted. Figure~\ref{fig: framework_overview} shows the ML pipeline that is developed in this work. 
 
+\begin{figure}[H]
+    \centering
+    \input{figures/Methodology/overview}
+        \caption{ML pipeline of the framework developed in this thesis. The augmented flow state $(\mathbf{u}, \boldsymbol{\mu_0^\epsilon})$ is encoded into a latent vector $\mathbf{z}$, advanced in time by the Neural ODE $f_\phi$, monitored by the KNN out-of-distribution detector, and decoded back to a velocity field $\hat{\mathbf{u}}$ that is re-inserted into the WaterLily solver.}
+    \label{fig: framework_overview}
+\end{figure}
 
+The autoencoder provides the non-linear compression onto the latent space. The encoder $\varphi_\theta$ compresses the augmented input $\mathbf{x}_\text{in} = [\mathbf{u}\,;\,\boldsymbol{\mu}_0]$ into a latent vector $\mathbf{z} \in \mathbb{R}^{N_z}$, and the decoder $\psi_\theta$ reconstructs the velocity field $\hat{\mathbf{u}}$ from the latent space back to full dimensional physical space. 
+
+Following the data flow in figure~\ref{fig: framework_overview}, we arrive at the neural ODE. This provides the dynamics on the latent manifold. A small feed-forward network $f_\phi$ is used to learn the underlying rate of change of the latent dynamics, and can then be used to find the future latent $\tilde{\mathbf{z}}$ state by numerically integrating the learned time derivative from a known initial condition. The neural ODE is trained on encoded ground-truth trajectories using multiple shooting, which stabilises learning over the longer rollouts required to span relevant vortex shedding cycles. 
+
+After the neural ODE, the KNN integration monitor provides a runtime out-of-distribution signal. It is fitted to the latent states of the full-order snapshots used during AE and NODE training, after both networks have converged, and returns the mean distance to its $k$ nearest neighbours in the training cluster. During inference, this distance can be used to monitor the neural ODE's rollout accuracy and ensure the decoder receives a valid latent vector to reconstruct. The KNN monitor is treated as a non-trainable component and never enters either network's loss
+
+After the neural ODE integration and the KNN monitor flagging, the time integrated latent vector gets reconstructed back to physical space using the decoder, it is then ready to be injected back into the WaterLily simulation. 
+
+The remainder of this chapter treats each component of Figure~\ref{fig: framework_overview} in turn, together with the design choices made for the cylinder test case considered in this work. Section~\ref{sect: AE} describes the autoencoder architecture, its physics-informed loss and training procedure; Section~\ref{sect: NODE} the Neural ODE and its multiple-shooting training strategy; and Section~\ref{sect: 3.6OOD} the KNN integration monitor and the fallback strategy it triggers. Section~\ref{sect: workflow} then describes how these components are coupled to the WaterLily solver during inference. Figure~\ref{fig: framework_overview} serves as a reference throughout the chapter, allowing the reader to position each component in the global framework as a whole. 
+
+\todo{fix references later on}
 % -----------------------------------------------------------------------
-\section{Test setup}
+\section{WaterLily setup}
 
 WaterLily was used as the foundational numerical framework for this work. WaterLily is an open-source, incompressible viscous flow solver written entirely in the Julia programming language. \todo{bron voor julia en WaterLily toevoegen} It is completely backend agnostic, meaning that it supports serial and multithreaded CPU operation, as well as GPUs of different vendors. Furthermore, because WaterLily is implemented purely in Julia, the solver is fully differentiable via automatic differentiation. Because of WaterLily's backend-agnostic, differentiable architecture, it is well-positioned to integrate optimisation and machine learning frameworks.
 
@@ -572,16 +588,12 @@ The weights $\lambda_\text{div}$ and $\lambda_\text{curl}$ are tunable hyperpara
 
 Since the framework in this thesis is designed to run in line with a running WaterLily simulation, the autoencoder is trained on a range of snapshots from that simulation. Where the gathered snapshots are split temporally first, according to the preset run time of the simulation $t_\text{run}$, then all snapshots with $t^* < t^*_\text{train}$ form the training and validation pool. A temporal split was chosen over a random split because the latter would have allowed snapshots that are separated by less than a fraction of a shedding period to be assigned to different splits; given the strong periodicity of the flow, such near-duplicate pairs would cause the validation and test errors to collapse onto the training error and limit any proper analysis of the loss of generalisation beyond the training horizon. From the training and validation pool, $N_\text{train}$ snapshots are sampled at uniform temporal spacing, of which an additional $20\%$ are held out as a validation set for epoch-level monitoring. The remaining snapshots are drawn exclusively from $t^*_\text{train} \leq t^* < t_\text{run}$, and form a held-out test set used to assess generalisation beyond the training horizon. The absolute number of snapshots in the training can be kept modest because the relevant metric of dataset quality is not the number of snapshots, but rather the number of distinct phases of the shedding cycle covered, the training window in figure~\ref{fig: train_force_split} shows how $t^*_\text{train}$ was set to include 4 main shedding cycles to ensure that sufficient temporal and spatial scales are present in the training data. 
 
-
 \begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{figures/Methodology/train_force_split.pdf}
     \caption{}
     \label{fig: train_force_split}
 \end{figure}
-
-
-
 
 During training, the network weights $\theta$ are optimised using AdamW~\cite{Loshchilov2019}. Important to note is that the encoder and decoder are optimised at the same time and thus share the same network weights, only after training is finished are the encoder and decoder treated as seperate transformations. The learning rate is set according to the training regime, be it initial training or transfer learning training, with a decoupled weight decay of $\lambda = 9 \cdot 10^{-4}$, and gradients are computed via reverse-mode automatic differentiation using \texttt{Zygote.jl}. Mini-batches of $16$ snapshots are used to ensure smooth convergence of the loss function, and to save memory on the GPU. All tensors are stored in single precision (\texttt{Float32}) and training is performed on a single NVIDIA GPU on the DelftBlue HPC cluster \cite{DHPC2024}. 
 
@@ -624,7 +636,7 @@ Where $N_T$ represents the total number of ground truth trajectories of the same
     \label{fig: latent_traj}
 \end{figure}
 
-The neural ODE is tasked with learning the dynamics of this trajectory so it can integrate it forward in time. As introduced in \label{subsubsect: NODEs}, the Neural ODE parametrises the time derivative of the latent state with a neural network, so that future latent states are obtained by integrating \ref{eq: latent_NODE} from a known initial condition ($\mathbf{z}(t_{0, i})$) with a standard ODE solver
+The neural ODE is tasked with learning the dynamics of this trajectory so it can integrate it forward in time. As introduced in \ref{subsubsect: NODEs}, the Neural ODE parametrises the time derivative of the latent state with a neural network, so that future latent states are obtained by integrating \ref{eq: latent_NODE} from a known initial condition ($\mathbf{z}(t_{0, i})$) with a standard ODE solver
 
 \begin{equation}\label{eq: latent_NODE}
     \frac{d\mathbf{z}(t)}{dt} = f_\phi(\mathbf{z}(t)), \qquad \mathbf{z}(t_0) = \varphi_\theta(\mathbf{x}_\text{in}(t_0)).
@@ -646,7 +658,7 @@ The right-hand side of \autoref{eq: latent_NODE} is parametrised by the fully-co
 
  \begin{figure}[H]
     \centering
-    \input{figures/Methodology/node_architecture.tex}
+    \input{figures/Methodology/tikz_figures/node_architecture}
     \caption{Architecture of the Neural ODE right-hand side $f_\phi(\mathbf{z})$}
     \label{fig: NODE_arch}
 \end{figure}
@@ -691,7 +703,7 @@ To avoid this failure mode of the single shooting, the neural ODE is trained usi
 
 \begin{figure}[H]
     \centering
-    \input{figures/Methodology/multiple_shooting}
+    \input{figures/Methodology/tikz_figures/hybrid_flowchart}
     \caption{Multiple shooting schematic, showing the shooting gaps that need to be minimised during training, adapted from \textcite{Turan2022}}
     \label{fig: multiple_shoot_example}
 \end{figure}
@@ -774,19 +786,107 @@ In practice, the implementation of \textcite{Turan2022} that is available in \te
 % Validate latent trajectory quality against AE-encoded ground truth.
 
 % -----------------------------------------------------------------------
-\section{Out-of-Distribution Detection}
-\label{sect: 3.6OOD}
+\section{Integration Monitoring}
 
-% Flagging latent states that fall outside the training manifold.
+Like other autoregressive surrogates, neural ODEs tend to struggle with the effects of accumulating error during inference outside of the training timespan \cite{Lippe2023}. This means that the trained latent dynamics $f_\phi$ cannot be trusted indefinitely. Over a long enough rollout, the predicted state $\tilde{\mathbf{z}}$ will drift away from the ground-truth trajectory $\mathbf{z}$, and no amount of additional training removes this entirely. Because we want to integrate in the latent space for as long as possible to achieve the maximum speedup, there needs to be a way for the surrogate model to check whether its current prediction can still be trusted, and a fallback mechanism for when it cannot. Since the developed ML pipeline is trained in situ, we can't compare the rollout prediction accuracy to a saved ground truth, so we need to compare a new prediction to available data. 
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/node_rollout_vs_gt.pdf}
+    \caption{Caption}
+    \label{fig: node_drift}
+\end{figure}
+
+This means that statistics of the training data need to be used to monitor the rollout prediction accuracy. One approach is to monitor the residuals of the predicted flow field, as in the RePIT framework of \textcite{Jeon2024}, where the residual of the governing equations on the reconstructed field determines whether the network or the CFD solver advances to the next step. This does have a significant drawback when applied to our study: each latent state vector must be projected back into physical space to compute the residuals of the governing equations, which is a costly operation and is precisely what this framework aims to mitigate. 
+
+ A different class of approaches monitors the latent state directly through a statistical model of the training data. This is similar to the problem that Out-of-Distribution (OOD) detection aims to solve, where various methods have been developed to detect whether a sample lies outside the training range of an ML model \cite{Lee2018, Tack2020, Sehwag2021}. However, as \textcite{Sun2022} argues, most of these methods make strong assumptions on the underlying distribution of the feature space. 
+ 
+ Taking into account the fact that the framework in this thesis aims to be geometry agnostic, and that the training of the encoder is $\varphi_\theta$ is a nonlinear stochastic process which cannot be assumed to produce the same encoder weights $\theta$ every time; this means that the compression operation yields a different latent geometry for every training run; any assumed distribution would have to be re-fitted for each new geometry or retraining, and its shape is not known in advance. A non-parametric approach is therefore needed, one that uses the training samples directly without imposing a distribution on them. For this reason, this work uses a $k$-nearest-neighbour (KNN) score, following the deep-feature detector of \textcite{Sun2022}. The score measures the distance between a predicted latent vector and its K nearest neighbours in the set of encoded training snapshots and among the ptions about the shape of the underlying distribution. The construction of this scoring metric and its use are described in the following parts of this section. 
+
 
 \subsection{KNN-Based OOD Scoring}
 \label{sect: KNN}
 
-% KNN detector fitted on training latent vectors; distance threshold set at quantile q = 0.99 (k = 5 neighbours).
-% How the score is computed at inference time and what triggers an OOD flag.
+The $k$-nearest-neighbour score is computed in two stages. First, after training, the encoded training snapshots $\{\mathbf{z}_i\}_{i=1}^{N_\text{train}}$ are L2-normalised and stored in a KD-tree \todo{add reference}, which allows efficient computation of the KNN distance; secondly, the KD tree is used to query the distance to the k nearest neighbour of the newly predicted latent vector $\tilde{\mathbf{z}}$, shown in the pseudocode below in algorithm~\ref{alg: ood_knn}, following the method proposed by \textcite{Sun2022}.
+
+\begin{algorithm}[H]
+\SetAlgoLined
+\DontPrintSemicolon
+\caption{OOD Detection with Deep Nearest Neighbours in the Latent Space}
+\label{alg: ood_knn}
+\KwIn{latent training trajectories $\{\mathcal{T}_{z,i}\}_{i=1}^{N_T}$, neighbour count $k$, threshold $\tau$, query latent state $\tilde{\mathbf{z}}$}
+\KwOut{OOD decision $\mathbf{1}\{\,d_k(\tilde{\mathbf{z}}^{(n)}) \geq \tau\,\}$}
+\tcp*[l]{Offline: reference set construction}
+$\ell_2$-normalise each latent snapshot in $\{\mathcal{T}_{z,i}\}_{i=1}^{N_T}$ with $i = 1,\ldots,N_T$, $n = 0,\ldots,n_{t,i}$:\;
+\hspace{1em} $\mathbf{z}^{(n)}_{i,n} = \mathbf{z}_{i,n} / \|\mathbf{z}_{i,n}\|_2$\;
+Build a KD-tree $\mathcal{K}$ over $\mathcal{Z}_\text{ref} = \{ \mathbf{z}^{(n)}_{i,n}\}$\;
+\tcp*[l]{Online: inference-time scoring}
+$\ell_2$-normalise the query latent state: $\tilde{\mathbf{z}}^{(n)} \gets \tilde{\mathbf{z}} / \|\tilde{\mathbf{z}}\|_2$\;
+Query $\mathcal{K}$ for the $k$ nearest neighbours of $\tilde{\mathbf{z}}^{(n)}$\;
+Compute the distance to the $k$-th neighbour: $d_k(\tilde{\mathbf{z}}^{(n)}) \gets \|\tilde{\mathbf{z}}^{(n)} - \mathbf{z}^{(n)}_{(k)}\|_2$\;
+\Return $\mathbf{1}\{\,d_k(\tilde{\mathbf{z}}^{(n)}) \geq \tau\,\}$
+\end{algorithm}
+
+The $\ell_2$-normalisation in the KNN OOD algorithm ensures a uniform rescaling of the latent vectors such that modes with dominant amplitudes, like $z_1$ and $z_8$ visible in figure~\ref{fig: latent_traj}, would not dominate the OOD score. Without normalisation, the Euclidean distance would be dominated by the large-amplitude modes, and the OOD score would be insensitive to drift in the components that encode the secondary vortical structures. 
+
+The OOD detection effectively returns the distance $k$-th nearest training neighbour $d_k(\tilde{\mathbf{z}}^{(n)})$, and still needs to be compared to a preset threshold $\tau$ to be able to determine if the neural ODE integration is still in similar to the data it was trained on. This threshold $\tau$ is calibrated from said training distribution. When constructing the KD tree, the score $d_k$ is evaluated for every training snapshot against its own neighbours (excluding itself, because this is a trivial self-match at distance zero), producing a distribution of in-distribution scores. The threshold can then be set as the $q$-quantile of this distribution, with $q = 0.99$ as the default. If required, the user can set the threshold as $q \geq 1$ the implementation interprets the value as a safety margin above the worst training score, $\tau = q \cdot \max_i d_k(\mathbf{z}_i^{(n)})$, which is occasionally useful when calibration on a small or noisy training set would otherwise produce an overly tight threshold.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/node_knn_score_k5.pdf}
+    \caption{Caption}
+    \label{fig: KNN_rollout}
+\end{figure}
+
+Figure~\ref{fig: KNN_rollout} shows the KNN score of the ground-truth latent trajectory compared to that of the neural ODE rollout. The shedding frequency is again visible in both signals. The rollout score (blue) tracks the ground truth closely while inside the training window, but begins to diverge shortly after $t^* \approx 18$, crosses $\tau$ near $t^* \approx 20$, and remains well above it for the remainder of the rollout. This confirms that the neural ODE captures the underlying latent dynamics accurately enough to extrapolate beyond the training horizon for a limited time, but that its predictions must be monitored if the reconstructed full-order state is to remain physically consistent.
+
 
 \subsection{Fallback Strategy}
 \label{sect: fallback}
+
+Using the KNN score from \autoref{sect: KNN}to decide, at every prediction attempt, whether the latent rollout produced by $f_\phi$ can still be trusted or whether the conventional WaterLily solver should resume time integration. Whenever $d_k(\tilde{\mathbf{z}}^{(n)}) \geq \tau$, the predicted latent state is discarded and the CFD solver advances the flow field $\mathbf{u}$ from its last accepted state to stabilise the hybrid simulation again. The KNN-OOD is also used to check whether the newly encoded data from the encoder is similar to the samples in the latent trajectories used during training, serving as a monitor of autoencoder accuracy as well. A pseudocode example of the implemented fallback strategy is displayed in \autoref{alg: predict_flex} below. 
+
+\begin{algorithm}[H]
+\SetAlgoLined
+\DontPrintSemicolon
+\caption{KNN-OOD-gated latent rollout (\texttt{predict\_flex})}
+\label{alg: predict_flex}
+\KwIn{trained autoencoder $(\varphi_\theta, \psi_\theta)$, latent dynamics $f_\phi$, fitted KNN-OOD $(\mathcal{K}, \tau)$, current flow state $(\mathbf{u}, \mu_0)$ at time $t^*_0$, prediction step $\Delta t^*$}
+\KwOut{decoded flow field $\hat{\mathbf{u}}$, integration horizon $n_\text{integr}$, retrain flag $r$}
+
+\tcp*[l]{encode current CFD state}
+$\mathbf{z}_0 \gets \varphi_\theta(\mathbf{u}, \mu_0)$\;
+$\mathbf{z}_0^{(n)} \gets \mathbf{z}_0 / \|\mathbf{z}_0\|_2$\;
+\If{$d_k(\mathbf{z}_0^{(n)}; \mathcal{K}) \geq \tau$}{
+    \Return $\varnothing,\; 0,\; \text{true}$ \tcp*[l]{encoded state already OOD; defer to CFD}
+}
+$r \gets \text{false}$, $\; n_\text{integr} \gets 1$, $\; t^*_n \gets t^*_0 + \Delta t^*$;
+
+\tcp*[l]{flexible-horizon rollout with per-step OOD check}
+% $t^*_n \gets t^*_n + \Delta t^* $\;
+$\tilde{\mathbf{z}}_\text{old} \gets \text{NODEPredict}\bigl(f_\phi,\; \mathbf{z}_0,\; [t_0, t_n]\bigr)$\;
+\While{$\text{true}$}{
+    $\tilde{\mathbf{z}}_\text{new} \gets \text{NODEPredict}\bigl(f_\phi,\; \mathbf{z}_0,\; [t_0, t_n + \Delta t^*]\bigr)$\;
+    $\tilde{\mathbf{z}}^{(n)}_\text{new} \gets \tilde{\mathbf{z}}_\text{new}  / \|\tilde{\mathbf{z}}_\text{new} \|_2$\;
+    \If{$d_k(\tilde{\mathbf{z}}^{(n)}_\text{new}; \mathcal{K}) \geq \tau$}{
+        $r \gets \text{true}$\;
+        \textbf{break} \tcp*[l]{cut rollout, hand control back to CFD}
+    }
+    $n_\text{integr} \gets n_\text{integr} + 1$\;
+    $t^*_n \gets t^*_n + \Delta t^* $\;
+    $\tilde{\mathbf{z}}_\text{old} \gets \tilde{\mathbf{z}}_\text{new}$
+
+}
+
+\tcp*[l]{decode last accepted latent state}
+$\hat{\mathbf{u}} \gets \psi_\theta(\tilde{\mathbf{z}}_\text{old},\, \mu_0)$\;
+\Return $\hat{\mathbf{u}},\; n_\text{integr},\; r$
+\end{algorithm}
+
+It is important to note that when the OOD flag is triggered, the latent neural ODE is \emph{not} retrained immediately. A single OOD event does not imply that $f_\phi$ cannot represent the latent dynamics of the current latent state anymore; it mainly implies that the current latent rollout has accumulated too much error and, as a result, drifted into a region of the latent space where the rollout can no longer be certified against the training distribution.  The conventional solver therefore takes over for $n_\text{switch}$ steps, advancing $\mathbf{u}$ through the Navier--Stokes solver for a predetermined number of steps to stabilise the simulation back to a recognisable regime that the encoder can then compress again. Retraining of the autoencoder and neural ODE is triggered when the integration monitor has flagged the new latent state for a predetermined number of times. At that point, the current simulation state has already drifted too far past the training regime, meaning that the assumption that the existing training set covers the active flow regime is no longer defensible, and the in situ pipeline then updates its reference data, and retrains the ML pipeline entirely. 
+
+\todo{make sure that by this point, the retraining scheme has already been introduced}
+
 
 % When an OOD flag is raised, control is handed back to the conventional CFD solver.
 % Discuss the trade-off between acceleration and safety.
@@ -795,24 +895,34 @@ In practice, the implementation of \textcite{Turan2022} that is available in \te
 \section{Integrated Acceleration Workflow}
 \label{sect: workflow}
 
+
+% \begin{figure}[tbp]
+%     \centering
+%     \input{figures/Methodology/tikz_figures/hybrid_flowchart}
+
+%     \caption{Integrated acceleration workflow. After a WaterLily warmup phase
+%     populates the training set, the AE and NODE are trained in-line; during the
+%     subsequent hybrid loop, every $n_\text{switch}$ CFD steps a flexible-horizon
+%     latent prediction is attempted, gated by the KNN OOD detector. Repeated OOD
+%     flags trigger an adaptive retraining branch.}
+%     \label{fig: workflow}
+% \end{figure}
+
 % Putting the trained components together as a drop-in CFD accelerator.
 
-\subsection{Fixed-Horizon Prediction}
-\label{sect: fixedhorizon}
 
-% \texttt{predict\_n}: encode current field → NODE integrate $n_t$ steps → decode → insert into solver.
-% Describe the non-dimensionalization of the time axis (division by characteristic length = 32).
+\subsection{Overview of Hybrid Loop}
+\label{subsect: Hybrid}
 
-\subsection{Flexible-Horizon Prediction}
-\label{sect: flexhorizon}
+\subsection{Latent-space Prediction Primitives}
+\label{subsect: latent_primitives}
 
-% \texttt{predict\_flex}: OOD-gated variant that decides how many steps to skip adaptively based on the OOD score.
-
-\subsection{Coupling with the CFD Solver}
+\subsection{WaterLily Coupling}
 \label{sect: coupling}
 
-% How predictions are inserted back into the simulation: velocity field update, pressure reset, CFL-based Δt update.
-% Optional Biot boundary condition imposition after insertion.
+
+\subsection{Adaptive Retraining}
+\label{subsect: retraining}
 
 % -----------------------------------------------------------------------
 \section{Evaluation Design}

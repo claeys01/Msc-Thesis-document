@@ -1731,3 +1731,50 @@ year = {2024},
 howpublished = {\url{https://www.tudelft.nl/dhpc/ark:/44463/DelftBluePhase2}},
 ark = {ark:/44463/DelftBluePhase2}
 }
+
+@article{Lippe2023,
+   abstract = {Time-dependent partial differential equations (PDEs) are ubiquitous in science and engineering. Recently, mostly due to the high computational cost of traditional solution techniques, deep neural network based surrogates have gained increased interest. The practical utility of such neural PDE solvers relies on their ability to provide accurate, stable predictions over long time horizons, which is a notoriously hard problem. In this work, we present a large-scale analysis of common temporal rollout strategies, identifying the neglect of non-dominant spatial frequency information, often associated with high frequencies in PDE solutions, as the primary pitfall limiting stable, accurate rollout performance. Based on these insights, we draw inspiration from recent advances in diffusion models to introduce PDE-Refiner; a novel model class that enables more accurate modeling of all frequency components via a multistep refinement process. We validate PDE-Refiner on challenging benchmarks of complex fluid dynamics, demonstrating stable and accurate rollouts that consistently outperform state-of-the-art models, including neural, numerical, and hybrid neural-numerical architectures. We further demonstrate that PDE-Refiner greatly enhances data efficiency, since the denoising objective implicitly induces a novel form of spectral data augmentation. Finally, PDE-Refiner's connection to diffusion models enables an accurate and efficient assessment of the model's predictive uncertainty, allowing us to estimate when the surrogate becomes inaccurate.},
+   author = {Phillip Lippe and Bastiaan S. Veeling and Paris Perdikaris and Richard E. Turner and Johannes Brandstetter},
+   month = {10},
+   title = {PDE-Refiner: Achieving Accurate Long Rollouts with Neural PDE Solvers},
+   url = {http://arxiv.org/abs/2308.05732},
+   year = {2023}
+}
+
+
+@article{Sun2022,
+   abstract = {Out-of-distribution (OOD) detection is a critical task for deploying machine learning models in the open world. Distance-based methods have demonstrated promise, where testing samples are detected as OOD if they are relatively far away from in-distribution (ID) data. However, prior methods impose a strong distributional assumption of the underlying feature space, which may not always hold. In this paper, we explore the efficacy of non-parametric nearest-neighbor distance for OOD detection, which has been largely overlooked in the literature. Unlike prior works, our method does not impose any distributional assumption, hence providing stronger flexibility and generality. We demonstrate the effectiveness of nearest-neighbor-based OOD detection on several benchmarks and establish superior performance. Under the same model trained on ImageNet-1k, our method substantially reduces the false positive rate (FPR@TPR95) by 24.77\% compared to a strong baseline SSD+, which uses a parametric approach Mahalanobis distance in detection. Code is available: https://github.com/deeplearning-wisc/knn-ood.},
+   author = {Yiyou Sun and Yifei Ming and Xiaojin Zhu and Yixuan Li},
+   month = {12},
+   title = {Out-of-Distribution Detection with Deep Nearest Neighbors},
+   url = {http://arxiv.org/abs/2204.06507},
+   year = {2022}
+}
+
+@article{Tack2020,
+   abstract = {Novelty detection, i.e., identifying whether a given sample is drawn from outside the training distribution, is essential for reliable machine learning. To this end, there have been many attempts at learning a representation well-suited for novelty detection and designing a score based on such representation. In this paper, we propose a simple, yet effective method named contrasting shifted instances (CSI), inspired by the recent success on contrastive learning of visual representations. Specifically, in addition to contrasting a given sample with other instances as in conventional contrastive learning methods, our training scheme contrasts the sample with distributionally-shifted augmentations of itself. Based on this, we propose a new detection score that is specific to the proposed training scheme. Our experiments demonstrate the superiority of our method under various novelty detection scenarios, including unlabeled one-class, unlabeled multi-class and labeled multi-class settings, with various image benchmark datasets. Code and pre-trained models are available at https://github.com/alinlab/CSI.},
+   author = {Jihoon Tack and Sangwoo Mo and Jongheon Jeong and Jinwoo Shin},
+   month = {10},
+   title = {CSI: Novelty Detection via Contrastive Learning on Distributionally Shifted Instances},
+   url = {http://arxiv.org/abs/2007.08176},
+   year = {2020}
+}
+
+@misc{Lee2018,
+      title={A Simple Unified Framework for Detecting Out-of-Distribution Samples and Adversarial Attacks}, 
+      author={Kimin Lee and Kibok Lee and Honglak Lee and Jinwoo Shin},
+      year={2018},
+      eprint={1807.03888},
+      archivePrefix={arXiv},
+      primaryClass={stat.ML},
+      url={https://arxiv.org/abs/1807.03888}, 
+}
+
+@article{Sehwag2021,
+   abstract = {We ask the following question: what training information is required to design an effective outlier/out-of-distribution (OOD) detector, i.e., detecting samples that lie far away from the training distribution? Since unlabeled data is easily accessible for many applications, the most compelling approach is to develop detectors based on only unlabeled in-distribution data. However, we observe that most existing detectors based on unlabeled data perform poorly, often equivalent to a random prediction. In contrast, existing state-of-the-art OOD detectors achieve impressive performance but require access to fine-grained data labels for supervised training. We propose SSD, an outlier detector based on only unlabeled in-distribution data. We use self-supervised representation learning followed by a Mahalanobis distance based detection in the feature space. We demonstrate that SSD outperforms most existing detectors based on unlabeled data by a large margin. Additionally, SSD even achieves performance on par, and sometimes even better, with supervised training based detectors. Finally, we expand our detection framework with two key extensions. First, we formulate few-shot OOD detection, in which the detector has access to only one to five samples from each class of the targeted OOD dataset. Second, we extend our framework to incorporate training data labels, if available. We find that our novel detection framework based on SSD displays enhanced performance with these extensions, and achieves state-of-the-art performance. Our code is publicly available at https://github.com/inspire-group/SSD.},
+   author = {Vikash Sehwag and Mung Chiang and Prateek Mittal},
+   month = {3},
+   title = {SSD: A Unified Framework for Self-Supervised Outlier Detection},
+   url = {http://arxiv.org/abs/2103.12051},
+   year = {2021}
+}
