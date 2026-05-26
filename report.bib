@@ -1778,3 +1778,26 @@ ark = {ark:/44463/DelftBluePhase2}
    url = {http://arxiv.org/abs/2103.12051},
    year = {2021}
 }
+@article{Maertens2015,
+   abstract = {An accurate Cartesian-grid treatment for intermediate Reynolds number fluid-solid interaction problems is described. We first identify the inability of existing immersed boundary methods to handle intermediate Reynolds number flows to be the discontinuity of the velocity gradient at the interface. We address this issue by generalizing the Boundary Data Immersion Method (BDIM, Weymouth and Yue (2011)), in which the field equations of each domain are combined analytically, through the addition of a higher order term to the integral formulation. The new method retains the desirable simplicity of direct forcing methods and smoothes the velocity field at the fluid-solid interface while removing its bias. Based on a second-order convolution, it achieves second-order convergence in the L2 norm, regardless of the Reynolds number. This results in accurate flow predictions and pressure fields without spurious fluctuations, even at high Reynolds number. A treatment for sharp corners is also derived that significantly improves the flow predictions near the trailing edge of thin airfoils. The second-order BDIM is applied to unsteady problems relevant to ocean energy extraction as well as animal and vehicle locomotion for Reynolds numbers up to 105.},
+   author = {Audrey P. Maertens and Gabriel D. Weymouth},
+   doi = {10.1016/j.cma.2014.09.007},
+   issn = {00457825},
+   journal = {Computer Methods in Applied Mechanics and Engineering},
+   keywords = {Airfoil,Cartesian-grid,Fluid-body interactions,Immersed boundary method,Intermediate Reynolds numbers,Sharp edge},
+   month = {1},
+   pages = {106-129},
+   publisher = {Elsevier},
+   title = {Accurate Cartesian-grid simulations of near-body flows at intermediate Reynolds numbers},
+   volume = {283},
+   year = {2015}
+}
+
+@article{Weymouth2025,
+   abstract = {We introduce a novel boundary condition for incompressible Eulerian simulations formulated using a Biot-Savart vorticity integral that maintains high-accuracy results even when the domain boundary is within a body-length of immersed solid boundaries. The key prerequisite to accurately couple the Biot-Savart condition to the Eulerian velocity and pressure fields is including the influence of the vorticity generated at the immersed boundaries during the incompressible-flow projection step. While the resulting linear operator for the pressure is non-local, it can be efficiently solved by partitioning it into the standard local Poisson operator and the Biot-Savart update. We use oct-tree clustering for the Fast Multi-level Method (FM$\ell$M) to reduce the computational cost of the evaluation of the Biot-Savart integral on the boundaries of a 3D simulation with $N$ points from $O(N^\{5/3\})$ to $O(N)$ and show that this has bounded errors. We show that the new method captures the analytical added-mass force of accelerating 2D and 3D plates exactly and matches experimentally measured wake development even when the entire domain only extends 1/2 diameter from the plate. The new method also predicts accurate time-varying forces for a 2D circle and 3D sphere regardless of domain size, while classical boundary conditions require a domain more than 100 times larger in 2D to converge on the new method's result. Finally, we study the highly sensitive 2D deflected wakes produced by high frequency flapping foils to the new boundary conditions and show that truncating the deflected wake within four cord-lengths of the body changes the body force amplitudes by 10-40%. Doubling the wake size recovers the asymptotic results to within 5%.},
+   author = {Gabriel D. Weymouth and Marin Lauber},
+   month = {3},
+   title = {Using Biot-Savart boundary conditions for unbounded external flow on Eulerian meshes},
+   url = {http://arxiv.org/abs/2404.09034},
+   year = {2025}
+}

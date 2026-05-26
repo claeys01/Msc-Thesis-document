@@ -16,9 +16,9 @@
 % \usepackage{algpseudocode}
 \usepackage[ruled,linesnumbered]{algorithm2e}
 \usepackage{tikz}
-\usetikzlibrary{positioning, arrows.meta, shapes.geometric, calc,fit}
+\usetikzlibrary{positioning, arrows.meta, shapes.geometric, calc,fit, patterns}
 
-\setcounter{tocdepth}{1}
+% \setcounter{tocdepth}{1}
 \setlist{itemsep=-2pt} % Reducing white space in lists slightly
 \renewcommand{\deg}{\si{\degree}\xspace} % Use \deg easily, everywhere
 
@@ -35,6 +35,14 @@
 \def\ReluColor{rgb:red,5;orange,4;white,3}
 \def\GeluColor{rgb:green,5;cyan,3;white,3}
 \def\FeatColor{rgb:teal,3;cyan,1;white,5}
+\definecolor{warmupgreen}{RGB}{205, 228, 200}
+\definecolor{hybridpurple}{RGB}{208, 208, 240}
+\definecolor{nodegrey}{RGB}{228, 224, 220}  % faintly warm grey
+
+\definecolor{phasewarmup}{RGB}{225, 240, 220}    % pale green
+\definecolor{phasetraining}{RGB}{245, 230, 210}  % pale sand
+\definecolor{phasehybrid}{RGB}{220, 225, 245}    % pale lavender
+\definecolor{phaseretrain}{RGB}{245, 220, 220}   % pale rose
 
 \usepackage{amsmath,amssymb}
 
@@ -80,8 +88,11 @@
 
 \input{mainmatter/1. Introduction}
 
-\input{mainmatter/2. Literature Review}
+% \input{mainmatter/2. Literature Review}
+\setcounter{chapter}{2}  % next \chapter will be Chapter 3
 \input{mainmatter/3. Methodology}
+% \input{mainmatter/4. Validation}
+\input{mainmatter/5. Results}
 
 % \input{mainmatter/Scratch}
 
@@ -101,5 +112,7 @@
 
 \appendix
 
+\input{mainmatter/Appendix/A. Autoencoder Tuning}
+\input{mainmatter/Appendix/B. variations in hybrid runs}
 
 \end{document}

@@ -1,0 +1,189 @@
+\usetikzlibrary{shadows.blur, fit, backgrounds}  % or shadows
+
+\resizebox{\linewidth}{!}{%
+
+\begin{tikzpicture}[
+    % ---- visual style ------------------------------------------------
+    bar/.style = {
+    draw=black, line width=0.4pt,
+    minimum height=14mm,
+    inner sep=4pt, outer sep=0pt,
+    anchor=west,
+    font=\sffamily\itshape\small,
+    blur shadow={shadow blur steps=4, shadow blur extra rounding=0.5pt,
+                 shadow xshift=1pt, shadow yshift=-1pt, shadow opacity=25}
+    },
+    warmup/.style = {bar, fill=warmupgreen},        % light blue (like "Surrogate
+    hybrid/.style = {bar, fill=hybridpurple},
+    node/.style   = {bar, fill=nodegrey},          % soft pink (like "Primal Solver")
+    stage/.style  = {bar, fill=yellow!40!white,        % warm yellow (like "Adjoint     Solver")
+                     text=black},
+    empty/.style  = {bar, fill=white},
+    tick/.style      = {font=\sffamily\footnotesize},
+    cond/.style      = {font=\sffamily\footnotesize, align=center},
+    arr/.style       = {-{Latex[length=2mm]}, thin},
+    % ---- block lengths (tweak freely) --------------------------------
+    /lengths/.cd,
+      warmup/.initial    = 35mm,
+      empty/.initial     =20mm,
+      gap1/.initial      = 5mm,    % small solver run before pipeline starts
+      solverA/.initial   = 12mm,    % solver before first NODE rollout
+      nodeA/.initial     = 8mm,
+      solverB/.initial   = 8mm,
+      nodeB/.initial     = 22mm,    % main NODE rollout block
+      solverC/.initial   = 8mm,
+      nodeC/.initial     = 6mm,    % "Updating data" pink stretch
+      retrain/.initial   = 10mm,    % tail solver run before retraining
+      gap2/.initial      = 12mm,    % short solver after retraining
+      nodeD/.initial     = 10mm,
+      tail/.initial      = 6mm,
+]
+
+% --- shorthand to read the lengths -----------------------------------
+\def\L#1{\pgfkeysvalueof{/lengths/#1}}
+
+% =====================================================================
+% TIMELINE BAR (laid out left-to-right by chaining anchors)
+% =====================================================================
+\node[warmup, minimum width=\L{warmup}]                  (warmup)  at (0,0) {Warmup};
+
+\node[warmup, minimum width=\L{gap1},   right=0pt of warmup]   (s0) {};
+\node[empty,  minimum width=\L{empty},  right=0pt of s0]       (e1) {\scriptsize $\mathcal{S}$ keeps running};
+
+% \node[warmup, minimum width=\L{solverA},right=0pt of e1]       (sA) {};
+\node[node,   minimum width=\L{nodeA},  right=0pt of e1]       (nA) {};
+\node[hybrid, minimum width=\L{solverB},right=0pt of nA]       (sB) {};
+\node[node,   minimum width=\L{nodeB},  right=0pt of sB]       (nB) {NODE rollout};
+\node[hybrid, minimum width=\L{solverC},right=0pt of nB]       (sC) {};
+\node[node,   minimum width=\L{nodeC},  right=0pt of sC]       (nC) {};
+
+\node[warmup, minimum width=\L{retrain},right=0pt of nC]       (sD) {Updating data};
+\node[warmup, minimum width=\L{gap1},   right=0pt of sD]       (sE) {};
+\node[empty,  minimum width=\L{empty},  right=0pt of sE]       (e2) {\scriptsize $\mathcal{S}$ keeps running};
+
+\node[node,   minimum width=\L{nodeA},  right=0pt of e2]       (nD) {};
+\node[hybrid, minimum width=\L{solverB},right=0pt of nD]       (sF) {};
+\node[node,   minimum width=\L{nodeB},  right=0pt of sF]       (nE) {NODE rollout};
+\node[hybrid, minimum width=\L{solverC},right=0pt of nE]       (sG) {};
+\node[node,   minimum width=\L{nodeC},  right=0pt of sG]       (nF) {};
+
+\node[warmup, minimum width=\L{tail},   right=0pt of nF, text width=20mm]      (tail) {\scriptsize Hybrid-Retrain loop continues};
+
+
+% multi-line labels inside the wider NODE blocks
+% \foreach \n/\txt in {nB/{NODE\\rollout}, nC/{Updating\\data}}{%
+%   \node[font=\sffamily\small, align=center] at (\n.center) {\txt};
+% }
+
+% =====================================================================
+% TIME AXIS (drawn just below the bar)
+% =====================================================================
+\coordinate (axL) at ($(warmup.south west)+(0,-1mm)$);
+\coordinate (axR) at ($(tail.south east)+(4mm,-1mm)$);
+\draw[arr, thick] (axL) -- (axR);
+
+% --- tick labels on the axis -----------------------------------------
+\node[tick, below=2mm of warmup.south east,anchor=north] {$t_{\text{train}}$};
+\node[tick, below=2mm of e1.south east,anchor=north] {$t_{\text{handoff}}$};
+
+\node[tick, below=2mm of nC.south east,    anchor=north] {$n_\text{flags} \geq n_\text{max, flags}$};
+\node[tick, below=2mm of nF.south east,    anchor=north] {$n_\text{flags} \geq n_\text{max, flags}$};
+\node[tick, below=2mm of tail.south east,  anchor=north] {$t_{\text{end}}$};
+
+% =====================================================================
+% STAGE BOXES (above the bar) and connecting arrows
+% =====================================================================
+\node[stage, above=12mm of warmup.north east, anchor=south west, xshift=3mm]
+        (pipe) {$\mathcal{P}$ training};
+\node[stage, above=12mm of sD.north east, anchor=south west, xshift=3mm]
+        (retr) {$\mathcal{P}$ Retraining};
+        
+
+% vertical brackets: end-of-warmup -> pipeline, end-of-tail-train -> retraining
+\draw[arr] (warmup.north east) |- (pipe.west);
+\draw[arr] (pipe.east) -| ($(nA.north west)+(0,0)$);
+
+\draw[arr] (sD.north east) |- (retr.west);
+\draw[arr] (retr.east) -| (nD.north west);
+
+% =====================================================================
+% OOD-trigger condition d(k,z) > tau, pointing at NODE-rollout boundaries
+% =====================================================================
+\node[cond] (ood) at ($(nB.north)+(0,7mm)$) {$d^1_k(\tilde{z}; \mathcal{K}_1) > \tau$};
+\foreach \t in {nA.north east, nB.north east, nC.north east}{%
+  \draw[arr] (ood) -- (\t);
+}
+
+\node[cond] (ood2) at ($(nE.north)+(0,7mm)$) {$d^2_k(\tilde{z}; \mathcal{K}_2) > \tau$};
+\foreach \t in {nD.north east, nE.north east, nF.north east}{%
+  \draw[arr] (ood2) -- (\t);
+}
+
+\node[cond] (switch1) at ($(nB.south)-(0,7mm)$) {$n_{step} \bmod n_{switch} = 0 $};
+\foreach \t in {nA.south west, nB.south west, nC.south west}{%
+  \draw[arr] (switch1) -- (\t);
+}
+
+\node[cond] (switch2) at ($(nE.south)-(0,7mm)$) {$n_{step} \bmod n_{switch} = 0 $};
+\foreach \t in {nD.south west, nE.south west, nF.south west}{%
+  \draw[arr] (switch2) -- (\t);
+}
+
+\begin{scope}[on background layer]
+  % --- 1. Outer container first ---------------------------------------
+  \node[
+    draw=black!50, dashed, rounded corners=4pt, fill=none,
+    inner sep=6mm, draw=none,
+    fit=(warmup)(tail)(pipe)(retr)(ood)
+  ] (outer) {};
+
+  % --- 2. Shared top/bottom Y reference (just points; we'll project) --
+  \coordinate (topY) at ($(outer.north) + (0,-2mm)$);
+  \coordinate (botY) at ($(outer.south) + (0, 2mm)$);
+
+  % --- 3. Phase panel style -------------------------------------------
+  \tikzset{
+    phase/.style={
+      draw=black!40, dashed, rounded corners=3pt,
+      inner xsep=1mm, inner ysep=0pt
+    }
+  }
+
+  % --- 4. Phase panels: project topY/botY onto each panel's own x range
+  \node[phase, fill=phasewarmup,
+        fit=(warmup)
+            (warmup.west |- topY) (warmup.east |- botY)]              (pW)  {};
+
+  \node[phase, fill=phasetraining,
+        fit=(s0)(e1)(pipe)
+            (s0.west |- topY)   (e1.east  |- botY)]                   (pT)  {};
+
+  \node[phase, fill=phasehybrid,
+        fit=(nA)(sB)(nB)(sC)(nC)(ood)
+            (nA.west |- topY)   (nC.east  |- botY)]                   (pH1) {};
+
+  \node[phase, fill=phaseretrain,
+        fit=(sD)(sE)(e2)(retr)
+            (sD.west |- topY)   (e2.east  |- botY)]                   (pR)  {};
+
+  \node[phase, fill=phasehybrid,
+        fit=(nD)(nF)
+            (nD.west |- topY)   (nF.east  |- botY)]                   (pH2) {};
+\node[phase, fill=phaseretrain,
+        fit=(tail)
+            (tail.west |- topY)   (tail.east  |- botY)]                   (pR2) {};
+\end{scope}
+
+\foreach \panel/\txt in {%
+  pW/Warmup,
+  pT/Training,
+  pH1/Hybrid loop,
+  pR/Retraining,
+  pH2/Hybrid loop,
+  pR2/Retraining%
+}{%
+  \node[font=\sffamily\itshape\footnotesize, anchor=south, yshift=+1.5mm]
+    at (\panel.north) {\txt};
+}
+
+\end{tikzpicture}}

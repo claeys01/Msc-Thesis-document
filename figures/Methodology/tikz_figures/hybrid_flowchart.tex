@@ -1,10 +1,11 @@
 \resizebox{\linewidth}{!}{%
 
-\begin{tikzpicture}[
+% 
+  \begin{tikzpicture}[
         % ===================================================================
         % STYLES — edit here to restyle the whole flowchart
         % ===================================================================
-        node distance      = 6mm and 6mm,
+        node distance      = 6mm and 11mm,
         font               = \scriptsize,
         % --- node shapes ---
         startstop/.style   = {ellipse, draw, thick, align=center, fill=gray!12,
@@ -33,7 +34,7 @@
     \node[cfdproc,   below=of start]                          (warmup)       {Warmup: pure CFD\\$0 \le t < t_\text{train}$, collect simdata};
     \node[trainproc, below=of warmup]                         (train_ae)     {Train AE\\(physics-informed loss)};
     \node[trainproc, below=of train_ae]                       (train_node)   {Train NODE\\multiple shooting, group $=20$};
-    \node[trainproc, below=of train_node]                     (build)        {Build AENODE\\fit KNN on $z_\text{train}$};
+    \node[trainproc, below=of train_node]                     (build)        {fit KNN on $z_\text{train}$};
 
     % ===================================================================
     % PHASE 2 — hybrid loop (entry + step gate)
@@ -46,12 +47,12 @@
     \node[cfdproc,   below=9mm of switch.south, xshift=-36mm] (cfd)         {WaterLily step\\\texttt{sim\_step!(sim)}};
 
     % --- right branch: predict_flex with inner OOD loop
-    \node[mlproc,    below=9mm of switch.south, xshift=36mm]  (encode)      {Encode field\\$z = \mathcal{E}(u,\,\mu_0)$};
-    \node[mlproc,    below=of encode]                          (integrate)   {NODE one stride\\$\tilde z = \varphi_\theta(z;\, n\,\Delta t/L)$};
-    \node[decision,  below=of integrate]                       (ood)         {$\mathrm{KNN}(\tilde z) > \theta$?};
+    \node[mlproc,    below=9mm of switch.south, xshift=36mm]  (encode)      {Encode field\\$z = \varphi_\theta(u,\,\mu_0)$};
+    \node[mlproc,    below=of encode]                          (integrate)   {NODE one stride\\$\tilde z = \text{NODEPredict}(z;\, n \cdot\Delta t^*)$};
+    \node[decision,  below=of integrate]                       (ood)         {$d_k(\tilde z, \mathcal{K}) > \tau$?};
     \node[mlproc,    left=10mm of ood]                         (incn)        {$n \leftarrow n+1$};
-    \node[flag,      below=10mm of ood]                        (rflag)       {\texttt{retrain\_required}\,$\leftarrow$\,true};
-    \node[mlproc,    below=of rflag]                           (insertblk)   {Decode \,+\, apply:\\$\hat u = \mathcal{D}(\tilde z,\mu_0)$ into sim,\\reset $p$, update $\Delta t$, Biot BCs};
+    % \node[flag,      below=10mm of ood]                        (rflag)       {\texttt{retrain\_required}\,$\leftarrow$\,true};
+    \node[mlproc,    below=10mm of ood]                           (insertblk)   {Decode \,+\, apply:\\$\hat u = \mathcal{D}(\tilde z,\mu_0)$ into sim,\\reset $p$, update $\Delta t$, Biot BCs};
 
     % --- after predict_flex returns
     \node[decision,  below=8mm of insertblk]                   (rcheck)      {\texttt{retrain\_required}?};
@@ -64,7 +65,7 @@
     % ===================================================================
     % PHASE 3 — retrain branch (right side, downward flow)
     % ===================================================================
-    \node[retrainproc, right=16mm of ccheck]                   (extend)      {Extend CFD\\(\texttt{run\_warmup!}\, $+\Delta t_\text{ext}$)};
+    \node[retrainproc, right=56mm of ccheck]                   (extend)      {Extend CFD\\(\texttt{run\_warmup!}\, $+\Delta t_\text{ext}$)};
     \node[retrainproc, above=of extend]                        (rae)         {Retrain AE\\(from checkpoint)};
     \node[retrainproc, above=of rae]                           (rnode)       {Retrain NODE\\(from checkpoint)};
     \node[retrainproc, above=of rnode]                         (rebuild)     {Rebuild AENODE\\reset step, counter};
@@ -92,8 +93,8 @@
     \draw[flow] (integrate)    -- (ood);
     \draw[flow] (ood.west)     -- node[edgelab,above]{No}  (incn.east);
     \draw[flow] (incn.north)   |- (integrate.west);                       % inner loop back
-    \draw[flow] (ood)          -- node[edgelab,right]{Yes} (rflag);
-    \draw[flow] (rflag)        -- (insertblk);
+    \draw[flow] (ood)          -- node[edgelab,right]{Yes} (insertblk);
+    % \draw[flow] (rflag)        -- (insertblk);
 
     % --- post-predict_flex: retrain flag check, counter update
     \draw[flow] (insertblk)    -- (rcheck);
@@ -117,7 +118,7 @@
     \draw[flow] (extend)       -- (rae);
     \draw[flow] (rae)          -- (rnode);
     \draw[flow] (rnode)        -- (rebuild);
-    \draw[flow] (rebuild.east) -- ++(10mm,0) |- ([yshift=8mm]tloop.north) -- (tloop.north);
+    \draw[flow] (rebuild.north) -- ++(0mm,0) |- ([yshift=8mm]tloop.north) -- (tloop.north);
 
-    \end{tikzpicture}%
+    \end{tikzpicture}
 }

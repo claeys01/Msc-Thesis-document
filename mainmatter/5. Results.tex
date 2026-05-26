@@ -1,0 +1,138 @@
+\chapter{Results}
+\label{chap: Results}
+
+% Opening: 1-2 paragraphs. State what is shown and in what order.
+% Specifically: the chapter leads with the headline hybrid-loop demonstration
+% (§4.2), then decomposes the result by validating each component in turn
+% (§4.3 AE, §4.4 NODE, §4.5 OOD), and closes with the generalisation /
+% transfer-learning study (§4.6) and an aggregate ablation summary (§4.7).
+% Recap of the test case (cylinder, Re = 2500, 2D, n = 2^9 grid) to anchor
+% all the numbers that follow. One sentence on hardware (DelftBlue, single
+% NVIDIA GPU, Float32) so the wall-times in §4.2 have a referent.
+
+% -----------------------------------------------------------------------
+\section{Experimental Setup and Conventions}
+\label{sect: 4_setup}
+
+
+
+% Short. Lifts the relevant subset of §3.1/§3.8 into a single place the reader
+% can refer back to without flipping chapters:
+%   - Domain, grid, Re, U/L, boundary treatment (1 paragraph).
+%   - Train / val / test temporal split (figure or sentence).
+%   - Hardware, precision, seed.
+%   - Hyperparameters used for the "baseline" hybrid run: latent_dim = 16,
+%     group_size = 20, continuity_term = 200, λ_div, λ_curl, n_switch = 150,
+%     Δt* = 0.35, max_retrain_flags = 3. Everything that follows is this run
+%     unless stated.
+
+% -----------------------------------------------------------------------
+\section{Hybrid Acceleration of the Cylinder Flow}
+\label{sect: 4_hybrid}
+
+% The headline section. This is the section you can draft now from existing
+% plt_combined.png runs.
+
+\subsection{Force Coefficients and Wall Time}
+\label{subsect: 4_forces_walltime}
+% Figure: plt_combined.png-style 3-panel: C_D / C_L vs t (hybrid + reference),
+% mode log (warmup / train / hybrid / retrain colour bands), wall-time bar.
+% Numbers: mean |C_D - C_D_ref|, RMS(C_L - C_L_ref), overall_speedup.
+
+\subsection{Mean Flow and Reynolds-Stress Statistics}
+\label{subsect: 4_meanflow_rst}
+% Figure: rst_comp_plot + plt_meanflow side by side.
+% Quantitative: spatial L2 errors on <u>, <v>, <u'u'>, <v'v'>, <u'v'>.
+
+\subsection{Physical Consistency of the Hybrid State}
+\label{subsect: 4_physical_consistency}
+% Divergence residual ||∇·û|| over time, max & mean.
+% Snapshot vorticity comparison hybrid vs reference at 3 instants.
+% Important framing: the hybrid trajectory is one realisation of a chaotic
+% system, so pointwise matching is the wrong test; statistical matching is
+% the right one. State this explicitly.
+
+% -----------------------------------------------------------------------
+\section{Autoencoder Reconstruction Quality}
+\label{sect: 4_ae_results}
+
+
+\subsection{Reconstruction Error on Held-Out Snapshots}
+\label{subsect: 4_ae_recon}
+% Figure: side-by-side ground truth / reconstruction / |error| for a handful
+% of test snapshots. From visualize_reconstructions().
+% Table: MAE, correlation coefficient per channel, divergence residual, curl
+% residual on the test split.
+
+\subsection{Effect of Latent Dimension}
+\label{subsect: 4_ae_latent}
+% From your hpc_tune sweep. Plot recon_mae and divergence vs N_z for
+% N_z ∈ {8, 16, 32, 64} or whatever you swept. Justify N_z = 16 as the
+% knee of the curve.
+
+\subsection{Effect of Physics-Informed Loss Weights}
+\label{subsect: 4_ae_phys_loss}
+% λ_div, λ_curl sweep. Show that without them the reconstruction is still
+% sharp but divergence-free is violated; with them, recon MAE rises slightly
+% but div/curl drop by an order of magnitude. This is the empirical
+% justification for the loss design in §3.3.2.
+
+\subsection{Training Dynamics}
+\label{subsect: 4_ae_training}
+% From plot_losses(): train / val / test loss curves, correlation curves.
+% One figure, brief discussion of convergence behaviour and any overfitting.
+
+% -----------------------------------------------------------------------
+\section{Neural ODE Latent Rollouts}
+\label{sect: 4_node_results}
+
+\subsection{Rollout Accuracy Against Encoded Ground Truth}
+\label{subsect: 4_node_rollout}
+% Per-dimension plot z_i(t) for ground truth vs NODE rollout, train region
+% and test region clearly marked. The "extrapolation" plot. State the
+% horizon at which rollout error crosses a threshold.
+
+\subsection{Effect of Multiple-Shooting Parameters}
+\label{subsect: 4_node_ms}
+% Sweep over group_size ∈ {10, 15, 20, 30} and continuity_term ∈
+% {100, 200, 400} (your sweep_node_retrain.jl grid). Plot rollout error
+% (and possibly training stability) vs each. Justify group_size = 20,
+% continuity_term = 200 from the data.
+
+
+% -----------------------------------------------------------------------
+\section{OOD Detector Calibration and Behaviour}
+\label{sect: 4_ood_results}
+
+\subsection{Threshold Calibration on Training Latents}
+\label{subsect: 4_ood_threshold}
+% Histogram of KNN distances on training latents, with the 99th-percentile
+% threshold τ marked.
+
+
+\subsection{Sensitivity to k and threshold}
+\label{subsect: 4_ood_sensitivity}
+% Brief: how the trigger rate during the hybrid loop changes with k and τ.
+
+% -----------------------------------------------------------------------
+\section{Generalisation}
+\label{sect: 4_transfer}
+
+% This is where TL1 / TL2 live. From the existing checkpoints
+% TL1_E500_..., TL2_E300_..., and sweep_node_retrain.jl.
+
+\subsection{Transfer to a Finer Simulation Mesh}
+\label{subsect: 4_tl_re}
+% Hybrid run at Re ≠ 2500 using TL1-fine-tuned AE. Show what fraction of
+% training cost is recovered relative to training from scratch.
+
+
+% -----------------------------------------------------------------------
+\section{Summary of Findings}
+\label{sect: 4_summary}
+
+% Short. One paragraph each on (i) end-to-end acceleration achieved,
+% (ii) which design choices the ablations validated, (iii) which honest
+% limitations are visible in the results (most likely: chaotic divergence
+% in pointwise comparisons, fixed geometry, BC overhead, single Re without
+% TL). The committee will look for this last paragraph.
