@@ -1029,8 +1029,11 @@ $(\mathbf{u}_{\mathcal{S}}, p_{\mathcal{S}}) \gets \texttt{biot\_mom\_step}(\mat
 \Return $\mathcal{S}$
 \end{algorithm}
 
+\subsubsection{First Projection}
+
 The first stage (\autoref{alg: inject}, line~4) is a single Biot--Savart projection applied using the injected velocity field. Following~\cite{Weymouth2025}, the partitioned Poisson--Biot--Savart system is evaluated to make the injected velocity field actually divergence-free, and to calculate the matching pressure field to achieve the divergence-free condition. After this step, the interior velocity satisfies $u_{i,i} = 0$ and a pressure field $p_{\mathcal{S}}$ has been recovered that is coupled with $\hat{\mathbf{u}}$, removing the lag introduced by the surrogate rollout.
 
+\subsubsection{Second Predictor-Corrector}
 The second stage (\autoref{alg: inject}, line~5) is a single Heun predictor--corrector step using the Biot--Savart projection on both substeps, identical to the scheme \texttt{mom\_step!} applies during ordinary time integration. This step is needed because the pressure recovered by the first Biot--Savart Projection is couple to  $\hat{\mathbf{u}}$, in the sense that it makes the predicted field divergence-free, but $\hat{\mathbf{u}}$ itself is not a correct Navier--Stokes state; particularly due to the fact that the decoder struggles with reproducing sharp gradients near the body boundary, which do not match the kernel-smoothed momentum balance that BDIM enforces near the immersed boundary~\cite{Maertens2015}. When the Poisson solver is asked to make such a field divergence-free, the resulting pressure contains pressure values that absorb these inconsistencies into a non-physical pressure impulse. If we were to sample the pressure force on the body at this stage, the resulting forces would produce a sudden peak in $C_d$ and $C_l$, which could offset the stability of the simulation $\mathcal{S}$. 
 
 \todo{refer to appendix to show figure of hybrid sim with pressure peaks}
@@ -1073,34 +1076,83 @@ The second step resolves this discrepancy by letting the discretised Navier--Sto
 
 % continue writing on motivation for 2 step biot application
 
-% \begin{algorithm}[H]
-% \SetAlgoLined
-% \DontPrintSemicolon
-% \caption{Velocity-field injection (\texttt{inject})}
-% \label{alg: inject}
-% \KwIn{WaterLily simulation $\mathcal{S}$ with interior velocity $\mathbf{u}_\mathcal{S}$, previous-step velocity $\mathbf{u}^0_\mathcal{S}$, pressure $p_\mathcal{S}$ and timestep history $\Delta t_\mathcal{S}$; predicted velocity field $\hat{\mathbf{u}}$; integration horizon $n_\text{integr}$; rollout step $\Delta t^*$}
-% \KwOut{updated simulation $\mathcal{S}$ ready to resume CFD time-stepping}
 
-% \tcp*[l]{overwrite interior velocities with the surrogate prediction}
-% $\mathbf{u}_\mathcal{S} \gets \hat{\mathbf{u}}$ \tcp*[r]{current step}
-% $\mathbf{u}^0_\mathcal{S} \gets \hat{\mathbf{u}}$ \tcp*[r]{previous step, for the next predictor}
-
-% \tcp*[l]{reset pressure; it is no longer consistent with $\hat{\mathbf{u}}$}
-% $p_\mathcal{S} \gets 0$\;
-
-% \tcp*[l]{advance physical time by the rollout horizon}
-% $\Delta t_\mathcal{S} \gets \Delta t_\mathcal{S} \cup \{(n_\text{integr} - 1) \cdot \Delta t^*\}$ \tcp*[r]{rollout span}
-% $\Delta t_\mathcal{S} \gets \Delta t_\mathcal{S} \cup \{\text{CFL}(\mathcal{S})\}$ \tcp*[r]{next CFD step}
-
-% \tcp*[l]{restore divergence-free boundary condition}
-% $\mathcal{S} \gets \texttt{impose\_biot\_bc!}(\mathcal{S})$\;
-
-% \Return $\mathcal{S}$
-% \end{algorithm}
 
 \subsection{Adaptive Retraining}
 \label{subsect: retraining}
-When the hybrid loop has flagged for $\mathcal{P}$ to be retrained
+When the hybrid loop has flagged for $\mathcal{P}$ to be retrained after $n_\text{max, flags}$ rollouts, the hybrid simulation stops switching between CFD and latent rollouts and enters the retraining stage. We are now situated in line 18 from \autoref{alg: run_hybrid}, following the pseudocode, the retrain routine will begin gathering new data so that the network weights $\theta$ and $\phi$ of the autoencoder ($\varphi_\theta$, $\psi_\theta$) and neural ODE ($f_\phi$) in parallel to the running simulation $\mathcal{S}$, as displayed in figure \ref{fig: retraining_logic}.
+
+\begin{figure}[ht]
+    \centering
+    \input{figures/Methodology/tikz_figures/retrain_flowchart}
+    \caption{Caption}
+    \label{fig: retraining_logic}
+\end{figure}
+
+The retraining phase is structured around a single design principle: rather than discarding the trained pipeline $\mathcal{P}^{(k)}=(\varphi_\theta^{(k)}, \psi_\theta^{(k)}, f_\phi^{(k)}, \mathcal{K}^{(k)}, \tau^{(k)})$ and learning a new one from scratch, the existing networks are fine-tuned on the augmented training set $\boldsymbol{\mathcal{T}}_u^{(N_T+1)} = \boldsymbol{\mathcal{T}}_u^{(N_T)} \cup \mathcal{T}_{u,\text{update}}$. This allows us to augment the existing training data with $\mathcal{T}_{u,\text{update}}$ from the same simulation, which shares the same dominant statistical structure as the data already encoded. This means that the existing weights $\theta^{(k)}, \phi^{(k)}$ have already been fitted to similar flow dynamics and do not need a high number of optimisation steps to update themselves to learn the newly seen flow dynamics. The following paragraphs will detail the exact meaning of the retrain flagging and the operations needed for a single retraining routine. 
+
+\todo{Come back to this, potentially rewrite}
+
+
+\subsubsection{Retrain flagging}
+
+At this stage, it is important to note what the retrain flag actually signifies. As mentioned in \ref{sect: OOD}, the KNN monitor tracks the proximity of the rolled-out latent state $\tilde{\mathbf{z}}$ to the training snapshots in $\boldsymbol{\mathcal{T}}_z$; this means that an OOD flag indicates that the neural ODE is being asked to extrapolate into the region of latent space for which empirical evidence of the validity of $f_\phi$ still exists. It doesn't directly indicate that the rolled-out trajectory is inaccurate, but given the periodic nature of the flow, the assumption can be made that a drift away from the common distribution can indicate that $f_\phi$ has learned a certain flow behaviour that was not explicitly seen in the training trajectory $\boldsymbol{\mathcal{T}}_z$, but is present in the complete simulation trajectory. This means that the retraining criterion has a certain uncertainty aspect to it, where it cannot know if the drift that it has repeatedly flagged is caused by accumulated error by the neural ODE, or if the repeated drift is caused by an unseen, but correct, flow prediction. 
+
+The retraining criterion thus implements a deliberate conservative policy: rather than wait for a visible divergence in the reconstructed flow field, by which point unphysical state has already been injected into $\mathcal{S}$ via the coupling routine of Section~\ref{sect: coupling}, the loop quits the latent rollout-CFD switching as soon as the neural ODE is repeatedly asked to operate outside the data that can support the new prediction for it. $n_\text{max, flags}$ controls the strength of this policy, where a small value will trigger retraining at the first flagged drift, accepting the cost of refitting in exchange for accurate coverage; a large value will tolerate more rollouts between retraining, accepting a greater risk of inaccurate rollouts in exchange for better acceleration performance. 
+
+
+\subsubsection{Data Extension}
+ Following the flowchart in figure~\ref{fig: retraining_logic} and line 19 in \autoref{alg: run_hybrid}, after the CFD data has been extended using the same snapshot sampling cadence as in the warmup phase, the new trajectory can be appended to the existing training trajectory:  
+
+ \begin{equation}
+     \boldsymbol{\mathcal{T}}_u^{(N_T+1)} = \boldsymbol{\mathcal{T}}_u^{(N_T)} \cup \mathcal{T}_{u,\text{update}}
+ \end{equation}
+Where the new trajectory $\mathcal{T}_{u,\text{update}}$ has it's own distinctive trajectory length $n_{t, update}$, but has a matching $\Delta t$ as the warmup trajectory. This 
+
+ 
+ $\boldsymbol{\mathcal{T}}_u^{(N_T+1)} = \boldsymbol{\mathcal{T}}_u^{(N_T)} \cup \mathcal{T}_{u,\text{update}}$. The snapshot cadence is held fixed so that the time spacing required for neural ODE training, see Equation~\eqref{eq: latent_traj}, is preserved so that the training of the multiple latent trajectories can be compared easily. 
+
+ 
+
+% % \subsubsection{Data Extension}
+% % \label{sect: retrain_data}
+
+% % Pipeline retraining begins by extending the training set with a fresh segment of fully-resolved CFD data. Once the flag threshold has been exceeded, control is handed back to WaterLily via the routine \texttt{run\_cutoff}, which advances the simulation conventionally for a duration $t^*_\text{update}$ and harvests snapshots at the same cadence $\Delta t^*_\text{samp}$ used during the warmup phase of Section~\ref{subsect: Hybrid}. The resulting trajectory
+% % %
+% \begin{equation}\label{eq: retrain_data}
+%     \mathcal{T}_{u,\text{update}} = \left\{ \bigl(\mathbf{u}(t^*_n),\, \boldsymbol{\mu}_0\bigr) \right\}_{n=1}^{n_{t,\text{update}}},
+%     \qquad n_{t,\text{update}} = \lfloor t^*_\text{update} / \Delta t^*_\text{samp} \rfloor,
+% \end{equation}
+% % %
+% % is appended to the existing training set,
+% % %
+% % \begin{equation}\label{eq: training_set_extension}
+% %     \boldsymbol{\mathcal{T}}_u^{(k+1)} \;=\; \boldsymbol{\mathcal{T}}_u^{(k)} \cup \mathcal{T}_{u,\text{update}},
+% % \end{equation}
+% % %
+% % where the superscript $k$ indexes the retraining episode. Two design choices are worth flagging. First, the snapshot cadence is held fixed across $\boldsymbol{\mathcal{T}}_u^{(k)}$ and $\mathcal{T}_{u,\text{update}}$, so that the time spacing required for neural ODE training, see Equation~\eqref{eq: latent_traj}, is preserved without resampling. Second, the cutoff phase plays a dual role: it generates the new training data, and it concurrently advances $\mathcal{S}$ during the wall-time spent refitting the pipeline. The hybrid loop therefore loses no simulation progress during retraining as long as $t^*_\text{update}$ is set close to the expected refit time. The numerical value of $t^*_\text{update}$ used in this work, and its influence on the overall acceleration, are discussed in Chapter~\ref{chap: 4}.
+
+
+% \subsubsection{Autoencoder Fine-Tuning}
+% \label{sect: retrain_AE}
+
+% Given the extended training set $\boldsymbol{\mathcal{T}}_u^{(k+1)}$, the encoder--decoder pair is refit by resuming optimisation from the checkpoint $(\varphi_\theta^{(k)}, \psi_\theta^{(k)})$ rather than from a fresh initialisation. The loss function~\eqref{eq: AE_loss} and the physics weights $\lambda_\text{div}$ and $\lambda_\text{curl}$ are retained without modification, since the conservation principles they encode are properties of the governing equations rather than of any particular data window. The optimiser, AdamW with decoupled weight decay $\lambda = 9 \cdot 10^{-4}$, the mini-batch size of $16$, and single-precision storage are likewise inherited from the initial training procedure of Section~\ref{sect: AEtraining}, to keep the regularisation profile of the fine-tune comparable to that of the parent model.
+
+% Two hyperparameters are changed relative to the initial training. The learning rate is reduced from $\eta = 1 \cdot 10^{-3}$ to $\eta = 2 \cdot 10^{-4}$, a factor of five, which is standard practice when fine-tuning a converged network~\cite{Howard2018}: the steeper rate appropriate for navigating the loss landscape from random initialisation would now act as a perturbation large enough to destroy the structure that $\theta^{(k)}$ has already captured. The epoch budget is correspondingly cut from $1000$ to $200$, since the network is starting from a point already close to the minimum on $\boldsymbol{\mathcal{T}}_u^{(k)}$ and only needs to deform its weights enough to incorporate the new snapshots in $\mathcal{T}_{u,\text{update}}$.
+
+% The per-channel normalisation statistics, by contrast, are recomputed from scratch on $\boldsymbol{\mathcal{T}}_u^{(k+1)}$ and stored in a fresh \texttt{Normalizer} object. This is the single point at which information from the new trajectory is permitted to overwrite, rather than merely augment, information from the initial training set. It is necessary because the z-score scaling defined in Section~\ref{sect: normalization} is applied identically at training and inference time: a normaliser fixed at the initial $\boldsymbol{\mathcal{T}}_u^{(0)}$ statistics would systematically misscale snapshots whose distribution has shifted in the intervening simulation time, and that misscaling would in turn distort every latent vector produced by $\varphi_\theta^{(k+1)}$ downstream. The output is a new checkpoint $(\varphi_\theta^{(k+1)}, \psi_\theta^{(k+1)})$ together with the updated normaliser, which together define the latent coordinate system used for the remainder of the retraining episode.
+
+
+% \subsubsection{Neural ODE Fine-Tuning}
+% \label{sect: retrain_NODE}
+
+% Once the autoencoder has been refit, the latent training set is regenerated by passing every snapshot in $\boldsymbol{\mathcal{T}}_u^{(k+1)}$ through the new encoder $\varphi_\theta^{(k+1)}$, yielding a fresh family of latent trajectories $\boldsymbol{\mathcal{T}}_z^{(k+1)} = \{\mathcal{T}_{z,i}^{(k+1)}\}_{i=1}^{N_T+1}$ according to Equation~\eqref{eq: latent_traj}. This regeneration is mandatory and non-negotiable in the ordering of operations: the latent space in which $f_\phi$ is defined is set by $\varphi_\theta$, so any change to the encoder invalidates the coordinate system that the previous $f_\phi^{(k)}$ was trained in. Retraining the neural ODE without first re-encoding would amount to fitting a vector field on coordinates that no longer correspond to the network producing them at inference time.
+
+% The neural ODE is then fine-tuned starting from the checkpoint $f_\phi^{(k)}$ using the multiple-shooting loss~\eqref{eq: node_loss_ms} of Section~\ref{sect: NODE_training}. The shooting hyperparameters, group size $n_s = 20$ and continuity weight $\lambda_c = 600$, are held fixed across retraining episodes so that the optimisation problem is structurally identical to the initial fit and the only quantity that changes is the data; this isolates retraining effects from re-tuning effects. As with the autoencoder, the optimisation schedule is shortened relative to the initial training: the learning rate is reduced from $\eta = 1 \cdot 10^{-2}$ to $\eta = 5 \cdot 10^{-3}$, and the iteration budget is cut from $250$ to $100$. The same justification applies as in Section~\ref{sect: retrain_AE}: the starting point $\phi^{(k)}$ already captures the dominant features of the latent dynamics on $\boldsymbol{\mathcal{T}}_z^{(k)}$, and the network only needs to accommodate the new segments contributed by $\mathcal{T}_{z,\text{update}}^{(k+1)} = \varphi_\theta^{(k+1)}(\mathcal{T}_{u,\text{update}})$.
+
+% It should be noted that, because $\varphi_\theta^{(k+1)} \neq \varphi_\theta^{(k)}$, the new latent representation of the original training data $\varphi_\theta^{(k+1)}(\boldsymbol{\mathcal{T}}_u^{(k)})$ is in general not identical to its previously encoded counterpart. Fine-tuning $f_\phi$ on $\boldsymbol{\mathcal{T}}_z^{(k+1)}$ therefore involves a slight redistribution of training effort across both the new snapshots and a re-mapped version of the old ones, rather than purely an extension into novel data. Provided the autoencoder fine-tune has converged to a small enough neighbourhood of $\theta^{(k)}$, this redistribution is benign; if the AE has shifted substantially, the NODE fine-tune may need a larger iteration budget than the figure quoted above, and this is monitored via the NODE validation loss reported at the end of the retraining episode.
+
+
 
 % -----------------------------------------------------------------------
 \section{Evaluation Strategy}
