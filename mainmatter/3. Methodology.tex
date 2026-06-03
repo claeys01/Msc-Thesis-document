@@ -605,7 +605,7 @@ Because $N_z \ll N_x N_y N_u$, the time integration operates on a low-dimensiona
 
 
 \subsection{Architecture}
-\label{sect: NODEarch}
+\label{subsect: NODEarch}
 
 The right-hand side of \autoref{eq: latent_NODE} is parametrised by the fully-connected neural network $f_\theta$. This MLP is deliberately kept compact, since the autoencoder has already distilled the flow states into a low-dimensional representation; a small network suffices to learn the latent dynamics. This has the added benefit of having a low computational cost during both training and time integration. A schematic of the network architecture is shown in \autoref{fig: NODE_arch}.
 
@@ -631,7 +631,7 @@ Given an initial condition $\mathbf{z}(t_0) = \varphi_\theta(\mathbf{x}_\text{in
 % Justify choice of adaptive solver for stiff-free latent dynamics.
 
 \subsection{Training with Multiple Shooting}
-\label{sect: NODEtraining}
+\label{subsect: NODEtraining}
 
 The parameters $\phi$ of the feed-forward network $f_\phi$ in the neural ODE are typically optimised by minimising an objective function, like the mean squared error, between the ground truth trajectories $\mathcal{T}_{z,i}$ and the predicted trajectories $\tilde{\mathcal{T}}_{z,i}$ during the training stage using a standard optimiser like \texttt{AdamW}. This objective function would then be given by:
 
