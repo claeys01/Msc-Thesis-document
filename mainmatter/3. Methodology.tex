@@ -30,7 +30,7 @@ The remainder of this chapter treats each component of Figure~\ref{fig: framewor
 % -----------------------------------------------------------------------
 \section{WaterLily setup}
 
-WaterLily was used as the foundational numerical framework for this work. WaterLily is an open-source, incompressible viscous flow solver written entirely in the Julia programming language. \todo{bron voor julia en WaterLily toevoegen} It is completely backend agnostic, meaning that it supports serial and multithreaded CPU operation, as well as GPUs of different vendors. Furthermore, because WaterLily is implemented purely in Julia, the solver is fully differentiable via automatic differentiation. Because of WaterLily's backend-agnostic, differentiable architecture, it is well-positioned to integrate optimisation and machine learning frameworks.
+WaterLily was used as the foundational numerical framework for this work. WaterLily is an open-source, incompressible viscous flow solver written entirely in the Julia programming language \textcite{Weymouth2025}. It is completely backend agnostic, meaning that it supports serial and multithreaded CPU operation, as well as GPUs of different vendors. Furthermore, because WaterLily is implemented purely in Julia, the solver is fully differentiable via automatic differentiation. Because of WaterLily's backend-agnostic, differentiable architecture, it is well-positioned to integrate optimisation and machine learning frameworks.
 
 \subsection{Numerical Solver}
 
@@ -365,7 +365,7 @@ An illustrative overview of the autoencoder architecture with these hyperparamet
 \subsubsection{Encoder}
 
 The encoder consists of $n_\text{conv}$ stacked compression blocks, followed by a sequence of $n_\text{dense}$ fully connected layers that project the flattened feature maps onto the latent vector $\mathbf{z} \in \mathbb{R}^{N_z}$. Each compression block applies, in order, a 2D convolution with kernel size $k$ and stride $s$, a batch-normalisation layer, a ReLU activation, and a $p \times p$ max-pooling operation. Same-padding is used in every convolution so that spatial resolution is reduced only through the pooling step. The convolution extracts local spatial features from the instantaneous flow state, and batch normalisation stabilises the distribution of layer inputs across a mini-batch. Batch normalisation stabilises training by smoothing the loss landscape, scaling and shifting the layer inputs based on trainable parameters to preserve model expressivity \cite{Santurkar2019}, allowing larger learning rates and reducing sensitivity to weight initialisation. ReLU introduces the non-linearity to represent the flow states on a low-dimensional latent space. 
-
+\todo{change figure and remove batch norm from the first layer}
 \begin{figure}[h]
     \centering
     \includegraphics[width=\linewidth]{figures/Methodology/encoder.png}
@@ -387,7 +387,9 @@ The encoder achieves its compression by doubling the channel count after each bl
     \label{eq: ae_spatial}
 \end{align}
 
- These deeper feature maps, therefore, encode larger-scale flow structures, such as the periodic wake pattern, while the shallow maps retain local features such as shear layers and boundary-layer gradients. The final compression block omits the batch normalisation step to preserve the activation magnitudes that feed into the dense bottleneck. An example schematic of an encoder is shown in Figure~\ref{fig: encoder}, showing how the reduction in spatial size is achieved while increasing the number of channels.
+ These deeper feature maps, therefore, encode larger-scale flow structures, such as the periodic wake pattern, while the shallow maps retain local features such as shear layers and boundary-layer gradients. An example schematic of an encoder is shown in Figure~\ref{fig: encoder}, showing how the reduction in spatial size is achieved while increasing the number of channels.
+
+ Batch normalisation is only applied to the interior convolutional blocks of the encoder and is deliberately omitted from the first and last blocks of the encoder. Since the first block operates directly on the augmented input data $\mathbf{x}_\text{in} = [\mathbf{u}\,;\,\boldsymbol{\mu_0}]$, whose channels have already been brought to a controlled scale by the per-channel normalisation, as explained in Section~\ref{sect: normalization}. If the input were re-normalised across the batch, knowing that the body moment $\boldsymbol{\mu}_0$ consists only of values between 1 and 0, the augmented input would no longer be physically meaningful. The last convolution block produces the final feature map that is flattened and passed to the dense layers. Normalising this feature map would couple the latent coordinates to batch-level statistics, which would distort the latent dynamics on which the neural ODE must be trained. 
 
 
 \subsubsection{Dense layers}
@@ -486,50 +488,6 @@ In the decoder, the decompression blocks halve the channel count while doubling 
 \end{figure}
 
 Batch normalisation is not included in the decoder, because the goal of the decoder is to reconstruct a specific physical field with known statistics (like divergence, kinetic energy or mean velocity), and it thus should not regularise the intermediate feature maps as it would interfere with the correct reconstruction of the learned flow states. 
-
-The full layer-by-layer specification of the autoencoder visualised in Figure~\ref{fig: AE} is summarised in \autoref{tab: AE_params}. The dense bottleneck layers account for approximately 95\% of the total parameter count, reflecting the high dimensionality of the flattened feature maps relative to the latent space.
-
-\begin{table}[H]
-\centering
-\caption{Layer-by-layer summary of the autoencoder architecture. Spatial dimensions 
-refer to the feature map size after each operation. The total number of trainable 
-parameters is 17\,638\,548.}
-\label{tab: AE_params}
-\small
-\begin{tabular}{llrrr}
-\toprule
-\textbf{Component} & \textbf{Layer} & \textbf{Output size} & \textbf{Parameters} \\
-\midrule
-\multicolumn{4}{l}{\textit{Encoder}} \\
-Input           &                                   & $256\times256\times4$   &           \\
-Block 1         & Conv $3\times3$, ReLU, MaxPool     & $128\times128\times8$   & 296       \\
-Block 2         & Conv $3\times3$, BN, ReLU, MaxPool & $64\times64\times16$    & 1\,200    \\
-Block 3         & Conv $3\times3$, BN, ReLU, MaxPool & $32\times32\times32$    & 4\,704    \\
-Block 4         & Conv $3\times3$, BN, ReLU, MaxPool & $16\times16\times64$    & 18\,624   \\
-Block 5         & Conv $3\times3$, BN, ReLU, MaxPool & $8\times8\times128$     & 74\,112   \\
-Block 6         & Conv $3\times3$, ReLU, MaxPool      & $4\times4\times256$     & 295\,168  \\
-Flatten         &                                   & $4096$                  &           \\
-Dense 1         & Linear, ReLU                      & $2048$                  & 8\,390\,656 \\
-Dense 2         & Linear                            & $16$                    & 32\,784   \\
-\midrule
-\multicolumn{4}{l}{\textit{Latent space $\mathbf{z} \in \mathbb{R}^{16}$}} \\
-\midrule
-\multicolumn{4}{l}{\textit{Decoder}} \\
-Dense 3         & Linear, ReLU                      & $2048$                  & 34\,816   \\
-Dense 4         & Linear, Reshape                   & $4\times4\times256$     & 8\,392\,704 \\
-Block 7         & Upsample, Conv $3\times3$, GELU   & $8\times8\times128$     & 295\,040  \\
-Block 8         & Upsample, Conv $3\times3$, GELU   & $16\times16\times64$    & 73\,792   \\
-Block 9         & Upsample, Conv $3\times3$, GELU   & $32\times32\times32$    & 18\,464   \\
-Block 10        & Upsample, Conv $3\times3$, GELU   & $64\times64\times16$    & 4\,624    \\
-Block 11        & Upsample, Conv $3\times3$, GELU   & $128\times128\times8$   & 1\,160    \\
-Block 12        & Upsample, Conv $3\times3$, GELU   & $256\times256\times4$   & 292       \\
-Projection      & Conv $3\times3$                   & $256\times256\times2$   & 74        \\
-Smoothing       & Conv $3\times3$                   & $256\times256\times2$   & 38        \\
-\midrule
-\textbf{Total}  &                                   &                         & \textbf{17\,638\,548} \\
-\bottomrule
-\end{tabular}
-\end{table}
 
 \subsection{Loss Function}
 \label{sect: AEloss}
@@ -1089,7 +1047,7 @@ When the hybrid loop has flagged for $\mathcal{P}$ to be retrained after $n_\tex
     \label{fig: retraining_logic}
 \end{figure}
 
-The retraining phase is structured around a single design principle: rather than discarding the trained pipeline $\mathcal{P}^{(k)}=(\varphi_\theta^{(k)}, \psi_\theta^{(k)}, f_\phi^{(k)}, \mathcal{K}^{(k)}, \tau^{(k)})$ and learning a new one from scratch, the existing networks are fine-tuned on the augmented training set $\boldsymbol{\mathcal{T}}_u^{(N_T+1)} = \boldsymbol{\mathcal{T}}_u^{(N_T)} \cup \mathcal{T}_{u,\text{update}}$. This allows us to augment the existing training data with $\mathcal{T}_{u,\text{update}}$ from the same simulation, which shares the same dominant statistical structure as the data already encoded. This means that the existing weights $\theta^{(k)}, \phi^{(k)}$ have already been fitted to similar flow dynamics and do not need a high number of optimisation steps to update themselves to learn the newly seen flow dynamics. The following paragraphs will detail the exact meaning of the retrain flagging and the operations needed for a single retraining routine. 
+The retraining phase is structured around a single design principle: rather than discarding the trained pipeline $\mathcal{P}^{(r)}=(\varphi_\theta^{(r)}, \psi_\theta^{(r}, f_\phi^{(r)}, \mathcal{K}^{(r)}, \tau^{(r)})$ and learning a new one from scratch, the existing networks are fine-tuned on the augmented training set $\boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}$. This allows us to augment the existing training data with $\mathcal{T}_{u,\text{update}}$ from the same simulation, which shares the same dominant statistical structure as the data already encoded. This means that the existing weights $\theta^{(r)}, \phi^{(r)}$ have already been fitted to similar flow dynamics and do not need a high number of optimisation steps to update themselves to learn the newly seen flow dynamics. The following paragraphs will detail the exact meaning of the retrain flagging and the operations needed for a single retraining routine. 
 
 \todo{Come back to this, potentially rewrite}
 
@@ -1104,54 +1062,71 @@ The retraining criterion thus implements a deliberate conservative policy: rathe
 \subsubsection{Data Extension}
  Following the flowchart in figure~\ref{fig: retraining_logic} and line 19 in \autoref{alg: run_hybrid}, after the CFD data has been extended using the same snapshot sampling cadence as in the warmup phase, the new trajectory can be appended to the existing training trajectory:  
 
- \begin{equation}
-     \boldsymbol{\mathcal{T}}_u^{(N_T+1)} = \boldsymbol{\mathcal{T}}_u^{(N_T)} \cup \mathcal{T}_{u,\text{update}}
+ \begin{equation}\label{eq: traju_update}
+     \boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}
  \end{equation}
-Where the new trajectory $\mathcal{T}_{u,\text{update}}$ has it's own distinctive trajectory length $n_{t, update}$, but has a matching $\Delta t$ as the warmup trajectory. This 
-
  
- $\boldsymbol{\mathcal{T}}_u^{(N_T+1)} = \boldsymbol{\mathcal{T}}_u^{(N_T)} \cup \mathcal{T}_{u,\text{update}}$. The snapshot cadence is held fixed so that the time spacing required for neural ODE training, see Equation~\eqref{eq: latent_traj}, is preserved so that the training of the multiple latent trajectories can be compared easily. 
+Where the new trajectory $\mathcal{T}_{u,\text{update}}$ has it's own distinctive trajectory length $n_{t, update}$, but has a matching $\Delta t$ as the warmup trajectory to ensure that the additional trajectory can be evaluated in a similar fashion to the warmup trajectory.
 
- 
+\subsubsection{Autoencoder Retraining}
+As mentioned before, after having augmented $\boldsymbol{\mathcal{T}_u}$ with new CFD snapshots, the weights $\theta$ of the autoencoder can be updated such that they are able to produce trustworthy latent trajectories on which the neural ODE can be trained. Essentially, the autoencoder retraining is done in the same way as the preliminary training of Section~\ref{sect: AEtraining}, the main difference being that the weights are not initialised from a random state but inherited from the converged parent model $\theta^{(k)}$.
 
-% % \subsubsection{Data Extension}
-% % \label{sect: retrain_data}
+During retraining, the augmented snapshot set is again partitioned temporally into a training and validation pool and a held-out test pool, following the same convention as the initial training: the $20\%$ validation split monitors the loss at epoch level, while the test pool, drawn from the most recent snapshots, gauges generalisation beyond the training horizon. The partition of the augmented set is shown in Figure~\ref{fig: augmented_forces}. The newly harvested trajectory
+$\mathcal{T}_{u,\text{update}}$ appears as the second training chunk near $t^* \approx 29$ and is temporally disjoint from the original window $t^* \in [0, 20]$. The empty patch in the middle of the forces indicates the range in which the neural ODE was rolling out the latent trajectories and is not samples as training data for the retraining of the models. 
 
-% % Pipeline retraining begins by extending the training set with a fresh segment of fully-resolved CFD data. Once the flag threshold has been exceeded, control is handed back to WaterLily via the routine \texttt{run\_cutoff}, which advances the simulation conventionally for a duration $t^*_\text{update}$ and harvests snapshots at the same cadence $\Delta t^*_\text{samp}$ used during the warmup phase of Section~\ref{subsect: Hybrid}. The resulting trajectory
-% % %
-% \begin{equation}\label{eq: retrain_data}
-%     \mathcal{T}_{u,\text{update}} = \left\{ \bigl(\mathbf{u}(t^*_n),\, \boldsymbol{\mu}_0\bigr) \right\}_{n=1}^{n_{t,\text{update}}},
-%     \qquad n_{t,\text{update}} = \lfloor t^*_\text{update} / \Delta t^*_\text{samp} \rfloor,
-% \end{equation}
-% % %
-% % is appended to the existing training set,
-% % %
-% % \begin{equation}\label{eq: training_set_extension}
-% %     \boldsymbol{\mathcal{T}}_u^{(k+1)} \;=\; \boldsymbol{\mathcal{T}}_u^{(k)} \cup \mathcal{T}_{u,\text{update}},
-% % \end{equation}
-% % %
-% % where the superscript $k$ indexes the retraining episode. Two design choices are worth flagging. First, the snapshot cadence is held fixed across $\boldsymbol{\mathcal{T}}_u^{(k)}$ and $\mathcal{T}_{u,\text{update}}$, so that the time spacing required for neural ODE training, see Equation~\eqref{eq: latent_traj}, is preserved without resampling. Second, the cutoff phase plays a dual role: it generates the new training data, and it concurrently advances $\mathcal{S}$ during the wall-time spent refitting the pipeline. The hybrid loop therefore loses no simulation progress during retraining as long as $t^*_\text{update}$ is set close to the expected refit time. The numerical value of $t^*_\text{update}$ used in this work, and its influence on the overall acceleration, are discussed in Chapter~\ref{chap: 4}.
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Methodology/training_force_replot.pdf}
+    \caption{Caption}
+    \label{fig: augmented_forces}
+\end{figure}
 
+The autoencoder retraining inherits the methodology of the preliminary training, including the loss function~\eqref{eq: AE_loss} and its physics-informed components. The only quantities that are altered during retraining are the learning rate $\eta$ and the number of training epochs. The learning rate is lowered relative to the initial training because the inherited weights $\theta^{(r)}$ already produce accurate flow reconstructions; retaining the original, higher rate would risk perturbing them away from the converged region of the loss landscape they already occupy, rather than refining them. 
 
-% \subsubsection{Autoencoder Fine-Tuning}
-% \label{sect: retrain_AE}
+\subsubsection{Neural ODE retraining}
+Before the neural ODE can be retrained, the augmented trajectory $\boldsymbol{\mathcal{T}}^{(r+1)}_u$ needs to be re encoded with the updated autoencoder. Since the encoder weights have changed, $\theta^{(r+1)} \neq \theta^{(r)}$, the latent trajectory used for the previous fit no longer match the space the encoder now produces, so a new set $\boldsymbol{\mathcal{T}}_z^{(r+1)} = \varphi_\theta^{(r+1)}(\boldsymbol{\mathcal{T}}_u^{(r+1)})$ is generated.
 
-% Given the extended training set $\boldsymbol{\mathcal{T}}_u^{(k+1)}$, the encoder--decoder pair is refit by resuming optimisation from the checkpoint $(\varphi_\theta^{(k)}, \psi_\theta^{(k)})$ rather than from a fresh initialisation. The loss function~\eqref{eq: AE_loss} and the physics weights $\lambda_\text{div}$ and $\lambda_\text{curl}$ are retained without modification, since the conservation principles they encode are properties of the governing equations rather than of any particular data window. The optimiser, AdamW with decoupled weight decay $\lambda = 9 \cdot 10^{-4}$, the mini-batch size of $16$, and single-precision storage are likewise inherited from the initial training procedure of Section~\ref{sect: AEtraining}, to keep the regularisation profile of the fine-tune comparable to that of the parent model.
+The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the same multiple-shooting loss~\eqref{eq: node_loss_ms} used before. The difference is that the set now holds $N_T + 1$ trajectories instead of $N_T$, so the average $\langle \cdot \rangle$ in \eqref{eq: node_loss_ms} runs over the original trajectories and the newly added one together, a visual representation of the new fitted trajectories is displayed in Figure~\ref{fig: ms_retrain_epochs}
 
-% Two hyperparameters are changed relative to the initial training. The learning rate is reduced from $\eta = 1 \cdot 10^{-3}$ to $\eta = 2 \cdot 10^{-4}$, a factor of five, which is standard practice when fine-tuning a converged network~\cite{Howard2018}: the steeper rate appropriate for navigating the loss landscape from random initialisation would now act as a perturbation large enough to destroy the structure that $\theta^{(k)}$ has already captured. The epoch budget is correspondingly cut from $1000$ to $200$, since the network is starting from a point already close to the minimum on $\boldsymbol{\mathcal{T}}_u^{(k)}$ and only needs to deform its weights enough to incorporate the new snapshots in $\mathcal{T}_{u,\text{update}}$.
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Methodology/node_retrain/2_trajectories.pdf}
+    \caption{Epoch 0}
+    \label{fig: ms_retrain_epoch0}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Methodology/node_retrain/20_trajectories.pdf}
+    \caption{Epoch 20}        
+    \label{fig: ms_retrain_epoch20}
+    \end{subfigure}
 
-% The per-channel normalisation statistics, by contrast, are recomputed from scratch on $\boldsymbol{\mathcal{T}}_u^{(k+1)}$ and stored in a fresh \texttt{Normalizer} object. This is the single point at which information from the new trajectory is permitted to overwrite, rather than merely augment, information from the initial training set. It is necessary because the z-score scaling defined in Section~\ref{sect: normalization} is applied identically at training and inference time: a normaliser fixed at the initial $\boldsymbol{\mathcal{T}}_u^{(0)}$ statistics would systematically misscale snapshots whose distribution has shifted in the intervening simulation time, and that misscaling would in turn distort every latent vector produced by $\varphi_\theta^{(k+1)}$ downstream. The output is a new checkpoint $(\varphi_\theta^{(k+1)}, \psi_\theta^{(k+1)})$ together with the updated normaliser, which together define the latent coordinate system used for the remainder of the retraining episode.
+    \vspace{0.8em}
 
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Methodology/node_retrain/100_trajectories.pdf}
+        \caption{Epoch 100}
+        \label{fig: ms_retrain_epoch100}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Methodology/node_retrain/250_trajectories.pdf}
+    \caption{Epoch 250}        
+    \label{fig: ms_retrain_epoch250}
+    \end{subfigure}
+    \caption{Evolution of the multiple-shooting trajectories during neural ODE retraining, shown for four latent components. The reference $z_\mathrm{ref}$ (solid) is compared to the prediction $\tilde{z}_\mathrm{pred}$ (dashed) at four training stages matching the full order trajectories in \ref{fig: augmented_forces}}
+    \label{fig: ms_retrain_epochs}
+\end{figure}
 
-% \subsubsection{Neural ODE Fine-Tuning}
-% \label{sect: retrain_NODE}
+Contrasting the initial multiple shooting training in Figure~\ref{fig: ms_epochs}, where the
+The network starts from a random state, and the epoch-0 prediction is nearly flat. Here, the inherited network $f_\phi^{(r)}$ already tracks the first chunk closely at epoch 0, since that part of the latent dynamics was learned during the previous fit. Looking at the second trajectory, the figure also shows that $f_\phi$ was already able to fit the unseen trajectory fairly well, since the initial shooting gaps are not very large. This means the training schedule can be shortened because the network begins near a good solution. 
 
-% Once the autoencoder has been refit, the latent training set is regenerated by passing every snapshot in $\boldsymbol{\mathcal{T}}_u^{(k+1)}$ through the new encoder $\varphi_\theta^{(k+1)}$, yielding a fresh family of latent trajectories $\boldsymbol{\mathcal{T}}_z^{(k+1)} = \{\mathcal{T}_{z,i}^{(k+1)}\}_{i=1}^{N_T+1}$ according to Equation~\eqref{eq: latent_traj}. This regeneration is mandatory and non-negotiable in the ordering of operations: the latent space in which $f_\phi$ is defined is set by $\varphi_\theta$, so any change to the encoder invalidates the coordinate system that the previous $f_\phi^{(k)}$ was trained in. Retraining the neural ODE without first re-encoding would amount to fitting a vector field on coordinates that no longer correspond to the network producing them at inference time.
-
-% The neural ODE is then fine-tuned starting from the checkpoint $f_\phi^{(k)}$ using the multiple-shooting loss~\eqref{eq: node_loss_ms} of Section~\ref{sect: NODE_training}. The shooting hyperparameters, group size $n_s = 20$ and continuity weight $\lambda_c = 600$, are held fixed across retraining episodes so that the optimisation problem is structurally identical to the initial fit and the only quantity that changes is the data; this isolates retraining effects from re-tuning effects. As with the autoencoder, the optimisation schedule is shortened relative to the initial training: the learning rate is reduced from $\eta = 1 \cdot 10^{-2}$ to $\eta = 5 \cdot 10^{-3}$, and the iteration budget is cut from $250$ to $100$. The same justification applies as in Section~\ref{sect: retrain_AE}: the starting point $\phi^{(k)}$ already captures the dominant features of the latent dynamics on $\boldsymbol{\mathcal{T}}_z^{(k)}$, and the network only needs to accommodate the new segments contributed by $\mathcal{T}_{z,\text{update}}^{(k+1)} = \varphi_\theta^{(k+1)}(\mathcal{T}_{u,\text{update}})$.
-
-% It should be noted that, because $\varphi_\theta^{(k+1)} \neq \varphi_\theta^{(k)}$, the new latent representation of the original training data $\varphi_\theta^{(k+1)}(\boldsymbol{\mathcal{T}}_u^{(k)})$ is in general not identical to its previously encoded counterpart. Fine-tuning $f_\phi$ on $\boldsymbol{\mathcal{T}}_z^{(k+1)}$ therefore involves a slight redistribution of training effort across both the new snapshots and a re-mapped version of the old ones, rather than purely an extension into novel data. Provided the autoencoder fine-tune has converged to a small enough neighbourhood of $\theta^{(k)}$, this redistribution is benign; if the AE has shifted substantially, the NODE fine-tune may need a larger iteration budget than the figure quoted above, and this is monitored via the NODE validation loss reported at the end of the retraining episode.
-
+Following the logic in Figure~\ref{fig: retraining_logic}, after the neural ODE has been trained, the KNN integration monitor can be reconfigured using the new augmented trajectory $\boldsymbol{\mathcal{T}_u}$ in the same fashion as was displayed in \ref{alg: ood_knn}. After having finished this, the updated pipeline can be reassembled using the updated autoencoder ($\varphi_\theta^{(r+1)}$, $\psi_\theta^{(r+1)}$) and latent dynamics $f_\phi^{(r+1)}$. 
 
 
 % -----------------------------------------------------------------------

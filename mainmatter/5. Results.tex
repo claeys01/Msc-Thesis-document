@@ -14,11 +14,172 @@
 \section{Experimental Setup and Conventions}
 \label{sect: 4_setup}
 
+Every hybrid run reported in this chapter is accompanied by a reference simulation $\mathcal{S}_\text{ref}$ that is advanced purely by WaterLily. The reference simulation is instantiated using the exact same initial condition of the hybrid simulation $u_0$ at $t^*=0$. This means that $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ are exact copies of each other in terms of grid, immersed geometry and time-stepping parameters, and are integrated with the same solver during each conventional CFD step. The reference simulation is never re-synchronised to the hybrid state: once the two share an initial condition, they evolve as two independent trajectories, with $\mathcal{S}_\text{ref}$ representing the outcome the conventional solver would have produced if there weren't any latent-space acceleration. This allows us to quantify the effects of the pipeline integrations, since the two simulations differ only in whether the latent dynamics $f_\phi$ are used to advance the simulation. 
 
+The simulation clocks are kept aligned by monitoring the mismatch in $t^*$ across the simulations. After each update of $\mathcal{S}$, be it a numerical CFD step or a latent rollout, $\mathcal{S}_\text{ref}$ is advanced by repeated solver steps, governed by the CFL condition \cite{Weymouth2025}, until its convective time $t^*(\mathcal{S}_\text{ref})$ has caught up to that of the hybrid simulation, so the two are co-located in $t^*$ to within a single time step at every checkpoint.
+
+While both simulations are advancing in time, relevant mean flow components (time-averaged velocity, pressure, and velocity fluctuations) are stored using the WaterLily \texttt{MeanFlow} object. The mean flow components of the hybrid and the reference simulation are sampled at a fixed interval \todo{Add exact value of saving interval}. It is important to note that during the latent rollout \ref{alg: predict_flex}, each new latent vector $\tilde{\mathbf{z}}$ that corresponds to the saving interval for the mean flow components is also saved, batched and decoded together with the final rollout prediction that has not been flagged as OOD by the KNN monitor, this assures that the mean flow components of the hybrid simulation are updated using the exact same amount of snapshots at the same $t^*$. 
+
+\subsection{Comparison metrics} 
+
+Because the cylinder wake at $Re = 2500$ is chaotic, the hybrid and reference trajectories can quickly separate in time when given a slight perturbation in the velocity field. Because of this, comparing $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ using a pointwise field error is not a meaningful measure of accuracy, and is therefore not used. The simulations are instead compared through statistical and integral
+quantities, which are the physically reproducible observables of the flow:
+
+\begin{itemize}
+  \item \textbf{Integrated forces.} The time-mean drag and the root-mean-square
+        lift are compared as, visible in \autoref{fig: 256_forces}
+        \begin{align}
+          e_{C_D} &= \bigl| \langle C_D \rangle - \langle C_D \rangle_\text{ref} \bigr|,
+          &
+          e_{C_L} &= \bigl| C_L^\text{rms} - C_{L,\text{ref}}^\text{rms} \bigr|,
+        \end{align}
+        together with their relative counterparts 
+        \begin{align}
+          e^\text{rel}_{C_D} &= \frac{\bigl| \langle C_D \rangle - \langle C_D \rangle_\text{ref} \bigr|}{C_{D, \text{ref}}},
+          &
+          e^\text{rel}_{C_L} &= \frac{\bigl| C_L^\text{rms} - C_{L,\text{ref}}^\text{rms} \bigr|}{C_{L,\text{ref}}^\text{rms}},
+        \end{align}
+        
+  % \item \textbf{Mean flow and Reynolds stresses.} The relative spatial $L_1$
+  %       error over the fluid domain $\Omega$, \todo{as done in \cite{Lu2025}}
+  %       \begin{align}
+  %         \varepsilon_q
+  %         = \frac{\lVert q - q_\text{ref} \rVert_{L_2(\Omega)}}
+  %                {\lVert q_\text{ref} \rVert_{L_2(\Omega)}},
+  %         \qquad
+  %         q \in \bigl\{ \langle u\rangle,\, \langle v\rangle,\,
+  %                       \langle u'u'\rangle,\, \langle v'v'\rangle,\,
+  %                       \langle u'v'\rangle \bigr\}.
+  %       \end{align}
+
+
+  \item \textbf{Computational cost.} The end-to-end speed-up
+        \begin{align}
+          S = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{hyb}},
+          \qquad
+          S_\text{CTU}
+          = \frac{T_\text{wall}^\text{ref} / \Delta T^*_\text{ref}}
+                 {T_\text{wall}^\text{hyb} / \Delta T^*_\text{hyb}},
+        \end{align}
+
+\end{itemize}
+\todo{finish later}
+
+\subsection{Baseline Configuration}
+As a starting point for presenting the acceleration results, a base pipeline $\mathcal{P}$ is set up against which all subsequent experiments are compared. The hyperparameters for each $\mathcal{P}$ component ($\varphi_\theta, \; \psi_\theta, \; f_\phi, \; \mathcal{K}$) are listed and discussed in the paragraphs below.
+
+\subsubsection{Autoencoder}
+Following the autoencoder design choices highlighted in \ref{sect: AE}, a baseline autoencoder is constructed. The autoencoder is to minimise the physics-informed loss function \ref{eq: AE_loss}, using the $L_1$ reconstruction term with the divergence and curl regularises. The baseline architecture was chosen via a grid search tuning. That sweeped over latent dimensions $N_Z$, physics informed weights $\lambda_\text{div},\,\lambda_\text{curl}$, convolutional blocks $n_\text{conv}$ and dense bottleneck layers $n_\text{dense}$. The exact scoring mechanism and all other evaluated models are discussed in \ref{app: ae_arch}. 
+
+\begin{table}[H]
+    \centering
+    
+    \begin{tabular}{@{}llc@{}}
+        \toprule
+        Hyperparameter & Symbol & Value \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Architecture}} \\
+        Latent dimension          & $N_z$            & $16$ \\
+        % Input channels            & $C_\text{in}$    & $4$  \\
+        % Output channels           & $N_u$            & $2$  \\
+        Convolutional blocks      & $n_\text{conv}$  & $5$  \\ % TODO confirm: code default = 5
+        Dense bottleneck layers   & $n_\text{dense}$ & $1$  \\ % TODO confirm: code default = 1
+        Base channel count        & $C_\text{base}$  & $8$  \\
+        Convolution kernel        & $k$              & $3$  \\
+        Pooling kernel            & $p$              & $2$  \\
+        Convolution stride        & $s$              & $1$  \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Training}} \\
+        Reconstruction loss       & --                      & $L_1$ \\
+        Divergence weight         & $\lambda_\text{div}$    & $100$ \\ % TODO confirm: slides = 1000
+        Curl weight               & $\lambda_\text{curl}$   & $100$ \\
+        Weight decay              & $\lambda$               & $9\times10^{-4}$ \\
+        Learning rate             & $\eta$                  & $1\times10^{-3}$ \\
+        Optimiser                 & --                      & AdamW \\ % TODO confirm AE optimiser
+        Batch size                & --                      & $16$  \\
+        Trajectory Downsample     & --                      & $300$ \\
+        Train - Validation split  & --                      & $0.2$ \\
+        \bottomrule
+    \end{tabular}
+    \caption{Baseline autoencoder configuration.}
+    \label{tab: 4_ae_config}
+\end{table}
+
+An interesting thing to note is the choice of $n_\text{dense}$, during hyperparameter optimization, the resulting score in \ref{tab: ae_grid_sweep} seemed to consistently favour a single dense bottleneck layer ($n_\text{dense}=1$) over deeper alternatives, this results in the dense stack in the encoder serving just as a linear compression from the last feature map $H_{n_\text{conv}}\!\cdot\!W_{n_\text{conv}}\!\cdot\!C_{n_\text{conv}}$ to the latent space. Meaning that, for this specific compression case, the encoder does not benefit from the additional ReLU nonlinearity from the intermediate dense compression steps. This aversion to additional ReLU activations could be caused by the fact that the flow that is being compressed contains negative velocities, which is information that is rectified to zero when passed through a ReLU activation function, as can be seen in Figure~\ref{fig: activations}. Because of these hard rectifications, negative components of the representation are discarded and can not be recovered by the decoder, resulting in a loss of information and accuracy over the autoencoder. 
+
+\todo{mss invoegen dat de keuze voor RElu uit de literature kwam \cite{Lu2025, Jeon2022, Glaws2020}, maar dat er niet veel literature beschikbaar is over vortex shedding met autoencoder}
+
+The choice for $n_\text{conv}$ shows that convolution up to a small spatial dimension (like in the example architecture in \ref{fig: encoder}) is also adversarial to autoencoder performance, showing how a feature map with small spatial dimensions can not contain enough information to accurately be compressed to a latent vector $\mathbf{z}$. 
+
+\todo{come back to this}
+
+\subsubsection{Neural ODE}
+\label{subsubsect: 4_baseline_node}
+
+The latent dynamics $\frac{\partial{\mathbf{z}}}{\partial t} = f_\phi(\mathbf{z})$ are parametrised by a single-hidden-layer multilayer perceptron and trained with the multiple-shooting loss~\eqref{eq: node_loss_ms}. The hidden width is set by $\texttt{dense\_mult}\times N_z$, and the shooting hyperparameters correspond to the group size $n_s$ and continuity weight $\lambda_c$ as introduced in Section~\ref{sect: NODEtraining}. 
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{@{}llc@{}}
+        \toprule
+        Hyperparameter & Symbol & Value \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Network}} \\
+        Latent dimension          & $N_z$                & $16$ \\
+        Hidden-width multiplier   & \texttt{dense\_mult} & $2$  \\ % TODO confirm: slides = 3
+        Hidden layers             & --                   & $1$  \\
+        Activation                & --                   & \texttt{tanhshrink} \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Integration}} \\
+        ODE solver                & --                   & \texttt{Tsit5} \\
+        Relative tolerance        & --                   & $1\times10^{-3}$ \\
+        Absolute tolerance        & --                   & $1\times10^{-5}$ \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Training}} \\
+        Optimiser                 & --                   & AdamW \\
+        Learning rate             & $\eta$               & $1\times10^{-2}$ \\
+        Iterations                & --                   & $250$ \\
+        Group size                & $n_s$                & $15$  \\
+        Continuity weight         & $\lambda_c$          & $250$ \\
+        Training samples          & --                   & $300$ \\
+        \bottomrule
+    \end{tabular}
+    \caption{Baseline neural ODE configuration.}
+    \label{tab: 4_node_config}
+\end{table}
+
+\subsubsection{Hybrid Solver and OOD Monitor}
+\label{subsubsect: 4_baseline_hybrid}
+
+The hybrid solver alternates between WaterLily time integration and latent rollouts, gated by the KNN out-of-distribution monitor of Section~\ref{sect: KNN} using the fallback strategy of Section~\ref{sect: fallback}. 
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{@{}llc@{}}
+        \toprule
+        Parameter & Symbol & Value \\
+        \midrule
+        \multicolumn{3}{l}{\textit{OOD monitor}} \\
+        Nearest neighbours        & $k$       & $5$ \\
+        Threshold quantile        & $q$       & $0.99$ \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Hybrid loop}} \\
+        Warmup window   & $t_\text{handoff}^*$ & $20$ \\
+        Training window & $t_\text{train}^*$     & $17.5$ \\ % TODO confirm: slides = 17.5
+        Update window   & $t_\text{update}^*$    & $10$ \\
+        Hybrid horizon            & $t_\text{end}^*$     & $50$ \\
+        Prediction cadence        & $n_\text{switch}$       & $150$  \\
+        Max amount of OOD flags   & $n_\text{max, flags}$        & $3$ flags \\
+        \bottomrule
+    \end{tabular}
+     \caption{Baseline hybrid-solver and OOD-monitor configuration.}
+    \label{tab: 4_hybrid_config}
+\end{table}
+
+The values of $t^*_\text{handoff}, \; t^*_\text{train}, \; t^*_\text{update}$ were empirically chosen to display the learning progress of the ML pipeline. Where a $t^*_\text{train} = 17.7$ corresponds to roughly 4 shedding periods, as visible in Figure~\ref{fig: 256_forces}, for the discussed flow case. The difference of $2,5$ with $t^*_\text{handoff} = 20$ is subsequently used as test data for the AE training to perform a preliminary assessment of the AE performance when tasked with compressing flow snapshots outside of its initial training data. 
 
 % Short. Lifts the relevant subset of §3.1/§3.8 into a single place the reader
 % can refer back to without flipping chapters:
-%   - Domain, grid, Re, U/L, boundary treatment (1 paragraph).
 %   - Train / val / test temporal split (figure or sentence).
 %   - Hardware, precision, seed.
 %   - Hyperparameters used for the "baseline" hybrid run: latent_dim = 16,
@@ -69,6 +230,10 @@
 % From your hpc_tune sweep. Plot recon_mae and divergence vs N_z for
 % N_z ∈ {8, 16, 32, 64} or whatever you swept. Justify N_z = 16 as the
 % knee of the curve.
+
+\subsection{Effect of Batch Size}
+\label{subsect: 4_ae_BS}
+
 
 \subsection{Effect of Physics-Informed Loss Weights}
 \label{subsect: 4_ae_phys_loss}

@@ -1669,7 +1669,6 @@ isbn="978-3-540-27039-3"
    abstract = {The neural ordinary differential equation (ODE) framework has emerged as a powerful tool for developing accelerated surrogate models of complex physical systems governed by partial differential equations (PDEs). A popular approach for PDE systems employs a two-step strategy: a nonlinear dimensionality reduction using an autoencoder, followed by time integration in the latent space using a neural ODE. This study examines the applicability of such autoencoder-based neural ODE architectures to systems where advection dominates the dynamics. In addition to predictive performance, this work investigates the mechanisms behind model acceleration by analyzing how the autoencoder and neural ODE components influence latent system time-scales. These effects are quantified through eigenvalue analysis of dynamical system Jacobians. Specifically, the study evaluates the sensitivity of model accuracy and discovered latent time-scales to key training choices: decoupled versus end-to-end training, latent space dimensionality, and training trajectory length. A central finding is the crucial role of training trajectory length (i.e., the number of rollout steps included in the loss function), which directly impacts the recovered latent time-scales. Longer trajectories lead to larger limiting time-scales in the latent system, and the most accurate models are shown to capture the largest time-scales of the original system. These insights are demonstrated across a diverse set of unsteady, advection-driven fluid dynamics problems: (1) the Kuramoto-Sivashinsky equations, (2) hydrogen-air channel detonations governed by the compressible reacting Navier-Stokes equations, and (3) 2D atmospheric flows.},
    author = {Ashish S. Nair and Shivam Barwey and Pinaki Pal and Jonathan F. MacArt and Troy Arcomano and Romit Maulik},
    month = {3},
-   note = {for my case this paper basically tells me that the convolution layers in the encoder do not mater for the latent space, this paper does not really tell me anything about ensuring reconstruction accuracy},
    title = {Understanding Latent Timescales in Neural Ordinary Differential Equation Models for Advection-Dominated Dynamical Systems},
    url = {http://arxiv.org/abs/2403.02224},
    year = {2024}
@@ -1800,4 +1799,55 @@ ark = {ark:/44463/DelftBluePhase2}
    title = {Using Biot-Savart boundary conditions for unbounded external flow on Eulerian meshes},
    url = {http://arxiv.org/abs/2404.09034},
    year = {2025}
+}
+
+@techReport{Weymouth2025,
+   abstract = {Integrating computational fluid dynamics (CFD) software into optimization and machine-learning frameworks is hampered by the rigidity of classic computational languages and the slow performance of more flexible high-level languages. In this work, we introduce WaterLily.jl: an open-source incompressible viscous flow solver written in the Julia language. An immersed boundary method is used to enforce the effect of solid boundaries on flow past complex geometries with arbitrary motions. The small code base is multidi-mensional, multiplatform and backend-agnostic, ie. it supports serial and multithreaded CPU execution, and GPUs of different vendors. Additionally, the pure-Julia implementation allows the solver to be fully differentiable using automatic differentiation. The computational cost per time step and grid point remains constant with increasing grid size on CPU backends, and we measure up to two orders of magnitude speed-up on a supercomputer GPU compared to serial CPU execution. This leads to comparable performance with low-level CFD solvers written in C and Fortran on research-scale problems, opening up exciting possible future applications on the cutting edge of machine-learning research.},
+   author = {Gabriel D Weymouth and Bernat Font},
+   keywords = {Cartesian-grid methods,Julia WaterLilyjl repository: https://githubcom/WaterLily-jl/WaterLilyjl Manuscript repository: https://githubcom/WaterLily-jl/WaterLilyjl_CPC_2024,computational fluid dynamics,heterogeneous programming},
+   title = {WaterLily.jl: A differentiable and backend-agnostic Julia solver for incompressible viscous flow around dynamic bodies},
+   url = {https://github.com/WaterLily-jl/WaterLily.jl},
+   year = {2025}
+}
+
+@article{Lu2025,
+   abstract = {Reduced-order modeling techniques, including the proper orthogonal decomposition and the dynamic mode decomposition, have been widely applied in unsteady flow rather than in fully developed turbulent flows, but these techniques are faced with challenges in simulating turbulence with high degrees of freedom and complex nonlinear interactions. One possible approach is to utilize a series of neural networks, such as autoencoders, to reduce the dimensionality of unsteady flows. This study began with combining a multi-scale convolutional autoencoder with a convolutional block attention module to extract the main features of turbulence. Then, physical constraint terms were added to the loss function to improve the accuracy of feature extraction. Finally, flow data was restored with potential physical properties. Forced isotropic turbulence with R e λ = 418 and turbulent channel flow with R e τ = 1000 were employed to test the model's performance, and the numerical results verified that the model can accurately extract the main features of turbulence and has an excellent ability to restore the flow data.},
+   author = {Mengxue Lu and Zi Ye and Longye Qiao and Hui Xu and Yan Zhang and Xinlong Feng},
+   doi = {10.1063/5.0248929},
+   issn = {10897666},
+   issue = {1},
+   journal = {Physics of Fluids},
+   month = {1},
+   publisher = {American Institute of Physics},
+   title = {Physics-assisted multi-scale convolutional autoencoder for turbulence reduced-order modeling},
+   volume = {37},
+   year = {2025}
+}
+
+@article{Glaws2020,
+   abstract = {As the size of turbulent flow simulations continues to grow, in situ data compression is becoming increasingly important for visualization, analysis, and restart checkpointing. For these applications, single-pass compression techniques with low computational and communication overhead are crucial. In this paper we present a deep-learning approach to in situ compression using an autoencoder architecture that is customized for three-dimensional turbulent flows and is well suited for contemporary heterogeneous computing resources. The autoencoder is compared against a recently introduced randomized single-pass singular value decomposition (SVD) for three different canonical turbulent flows: decaying homogeneous isotropic turbulence, a Taylor-Green vortex, and turbulent channel flow. Our proposed fully convolutional autoencoder architecture compresses turbulent flow snapshots by a factor of 64 with a single pass, allows for arbitrarily sized input fields, is cheaper to compute than the randomized single-pass SVD for typical simulation sizes, performs well on unseen flow configurations, and has been made publicly available. The results reported here show that the autoencoder dramatically outperforms a randomized single-pass SVD with similar compression ratio and yields comparable performance to a higher-rank decomposition with an order of magnitude less compression in regard to preserving a number of important statistical quantities such as turbulent kinetic energy, enstrophy, and Reynolds stresses.},
+   author = {Andrew Glaws and Ryan King and Michael Sprague},
+   doi = {10.1103/PhysRevFluids.5.114602},
+   issn = {2469990X},
+   issue = {11},
+   journal = {Physical Review Fluids},
+   month = {11},
+   publisher = {American Physical Society},
+   title = {Deep learning for in situ data compression of large turbulent flow simulations},
+   volume = {5},
+   year = {2020}
+}
+
+@article{Glaws2020,
+   abstract = {As the size of turbulent flow simulations continues to grow, in situ data compression is becoming increasingly important for visualization, analysis, and restart checkpointing. For these applications, single-pass compression techniques with low computational and communication overhead are crucial. In this paper we present a deep-learning approach to in situ compression using an autoencoder architecture that is customized for three-dimensional turbulent flows and is well suited for contemporary heterogeneous computing resources. The autoencoder is compared against a recently introduced randomized single-pass singular value decomposition (SVD) for three different canonical turbulent flows: decaying homogeneous isotropic turbulence, a Taylor-Green vortex, and turbulent channel flow. Our proposed fully convolutional autoencoder architecture compresses turbulent flow snapshots by a factor of 64 with a single pass, allows for arbitrarily sized input fields, is cheaper to compute than the randomized single-pass SVD for typical simulation sizes, performs well on unseen flow configurations, and has been made publicly available. The results reported here show that the autoencoder dramatically outperforms a randomized single-pass SVD with similar compression ratio and yields comparable performance to a higher-rank decomposition with an order of magnitude less compression in regard to preserving a number of important statistical quantities such as turbulent kinetic energy, enstrophy, and Reynolds stresses.},
+   author = {Andrew Glaws and Ryan King and Michael Sprague},
+   doi = {10.1103/PhysRevFluids.5.114602},
+   issn = {2469990X},
+   issue = {11},
+   journal = {Physical Review Fluids},
+   month = {11},
+   publisher = {American Physical Society},
+   title = {Deep learning for in situ data compression of large turbulent flow simulations},
+   volume = {5},
+   year = {2020}
 }
