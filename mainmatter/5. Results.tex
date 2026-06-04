@@ -55,15 +55,32 @@ quantities, which are the physically reproducible observables of the flow:
 
   \item \textbf{Computational cost.} The end-to-end speed-up
         \begin{align}
-          S = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{hyb}},
+          S_\text{loop} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, cfd} + T_\text{wall}^\text{h, rollout}},
           \qquad
-          S_\text{CTU}
-          = \frac{T_\text{wall}^\text{ref} / \Delta T^*_\text{ref}}
-                 {T_\text{wall}^\text{hyb} / \Delta T^*_\text{hyb}},
+          S_\text{eff}
+          = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
         \end{align}
+    Where $S_\text{loop}$ is the speedup achieved through the switching between the latent rollouts and CFD iterations, and $S_\text{eff}$ is the speedup achieved of the complete integrated workflow as proposed in Figure~\ref{fig: integrated_workflow}. 
 
 \end{itemize}
 \todo{finish later}
+
+
+
+
+
+% Short. Lifts the relevant subset of §3.1/§3.8 into a single place the reader
+% can refer back to without flipping chapters:
+%   - Train / val / test temporal split (figure or sentence).
+%   - Hardware, precision, seed.
+%   - Hyperparameters used for the "baseline" hybrid run: latent_dim = 16,
+%     group_size = 20, continuity_term = 200, λ_div, λ_curl, n_switch = 150,
+%     Δt* = 0.35, max_retrain_flags = 3. Everything that follows is this run
+%     unless stated.
+
+% -----------------------------------------------------------------------
+\section{Hybrid Acceleration of the Cylinder Flow}
+\label{sect: 4_hybrid}
 
 \subsection{Baseline Configuration}
 As a starting point for presenting the acceleration results, a base pipeline $\mathcal{P}$ is set up against which all subsequent experiments are compared. The hyperparameters for each $\mathcal{P}$ component ($\varphi_\theta, \; \psi_\theta, \; f_\phi, \; \mathcal{K}$) are listed and discussed in the paragraphs below.
@@ -116,7 +133,7 @@ The choice for $n_\text{conv}$ shows that convolution up to a small spatial dime
 \subsubsection{Neural ODE}
 \label{subsubsect: 4_baseline_node}
 
-The latent dynamics $\frac{\partial{\mathbf{z}}}{\partial t} = f_\phi(\mathbf{z})$ are parametrised by a single-hidden-layer multilayer perceptron and trained with the multiple-shooting loss~\eqref{eq: node_loss_ms}. The hidden width is set by $\texttt{dense\_mult}\times N_z$, and the shooting hyperparameters correspond to the group size $n_s$ and continuity weight $\lambda_c$ as introduced in Section~\ref{sect: NODEtraining}. 
+The latent dynamics $\frac{\partial{\mathbf{z}}}{\partial t} = f_\phi(\mathbf{z})$ are parametrised by a single-hidden-layer multilayer perceptron and trained with the multiple-shooting loss~\eqref{eq: node_loss_ms}. The hidden width is set by $\texttt{dense\_mult}\times N_z$, and the shooting hyperparameters correspond to the group size $n_s$ and continuity weight $\lambda_c$ as introduced in Section~\ref{subsect: NODEtraining}. 
 
 \begin{table}[H]
     \centering
@@ -177,6 +194,7 @@ The hybrid solver alternates between WaterLily time integration and latent rollo
         Update window   & $t_\text{update}^*$    & $10$ \\
         Hybrid horizon            & $t_\text{end}^*$     & $50$ \\
         Prediction cadence        & $n_\text{switch}$       & $150$  \\
+        Integration step          & $\Delta t^*$ & $0.35 \cdot \frac{U}{L}$ \\
         Max amount of OOD flags   & $n_\text{max, flags}$        & $3$ flags \\
         \bottomrule
     \end{tabular}
@@ -186,26 +204,22 @@ The hybrid solver alternates between WaterLily time integration and latent rollo
 
 The values of $t^*_\text{handoff}, \; t^*_\text{train}$ and $ t^*_\text{update}$ were empirically chosen to display the learning progress of the ML pipeline. Where a $t^*_\text{train} = 17.5$ corresponds to roughly 4 shedding periods, as visible in Figure~\ref{fig: 256_forces}, for the discussed flow case. The difference of $2,5$ with $t^*_\text{handoff} = 20$ is subsequently used as test data for the AE training to perform a preliminary assessment of the AE performance when tasked with compressing flow snapshots outside of its initial training data. 
 
-The hybrid loop is 
+The cadence of the hybrid loop is controlled by 2 variables, namely $n_\text{switch}$ and $\Delta t_\text{pred}$. Where $n_\text{switch}$ is the number of CFD steps between rollout attempts in the hybrid loop (Algorithm~\ref{alg: run_hybrid}). It controls the stabilisation time between rollout attempts and, in effect, also controls the achievable speedup by the hybrid loop; each block of $n_\text{switch}$ CFD steps is the cost of letting the injected field relax back to a stable state before the next rollout attempt. The second variable, $\Delta t_\text{pred}$ sets the
+physical time advanced per latent step, so a successful rollout of $n_\text{integr}$ steps injects $n_\text{integr}\!\cdot\!\Delta t_\text{pred}$ of simulation time at once. A larger $\Delta t_\text{pred}$ allows for a bigger gain per step, but advances the latent state further, raising potential drift and the chance of crossing the KNN threshold (Section~\ref{sect: KNN}). 
 
-% Short. Lifts the relevant subset of §3.1/§3.8 into a single place the reader
-% can refer back to without flipping chapters:
-%   - Train / val / test temporal split (figure or sentence).
-%   - Hardware, precision, seed.
-%   - Hyperparameters used for the "baseline" hybrid run: latent_dim = 16,
-%     group_size = 20, continuity_term = 200, λ_div, λ_curl, n_switch = 150,
-%     Δt* = 0.35, max_retrain_flags = 3. Everything that follows is this run
-%     unless stated.
 
-% -----------------------------------------------------------------------
-\section{Hybrid Acceleration of the Cylinder Flow}
-\label{sect: 4_hybrid}
-
-% The headline section. This is the section you can draft now from existing
-% plt_combined.png runs.
 
 \subsection{Force Coefficients and Wall Time}
 \label{subsect: 4_forces_walltime}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/base/hybrid_forces.pdf}
+    \caption{Caption}
+    \label{fig: base_forces}
+\end{figure}
+
+
 % Figure: plt_combined.png-style 3-panel: C_D / C_L vs t (hybrid + reference),
 % mode log (warmup / train / hybrid / retrain colour bands), wall-time bar.
 % Numbers: mean |C_D - C_D_ref|, RMS(C_L - C_L_ref), overall_speedup.
