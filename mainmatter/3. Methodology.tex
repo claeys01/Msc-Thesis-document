@@ -120,7 +120,7 @@ The test case used to validate the model described in Section~\ref{sect: propose
             Domain height      & $L_y$ & 256                        \\
             Cylinder center x  & $x_c$ & $\nicefrac{L_x}{4}$       \\
             Cylinder center y  & $y_c$ & $\nicefrac{L_y}{2}$       \\
-            Cylinder diameter  & $d_c$ & $\nicefrac{L_x}{16}$      \\
+            Cylinder diameter  & $d_c$ & $\nicefrac{L_x}{8}$      \\
             Reynolds Number    & $Re$  & $2500$                     \\
             Free stream velocity & $U_\infty$ & $(1, 0)$            \\
             \hline
@@ -782,6 +782,7 @@ Compute the distance to the $k$-th neighbour: $d_k(\tilde{\mathbf{z}}^{(n)}) \ge
 \end{algorithm}
 
 The $\ell_2$-normalisation in the KNN OOD algorithm ensures a uniform rescaling of the latent vectors such that modes with dominant amplitudes, like $z_1$ and $z_8$ visible in figure~\ref{fig: latent_traj}, would not dominate the OOD score. Without normalisation, the Euclidean distance would be dominated by the large-amplitude modes, and the OOD score would be insensitive to drift in the components that encode the secondary vortical structures. 
+\todo{say that the latent training data gets projected on the n dimensional hypersphere}
 
 The OOD detection effectively returns the distance $k$-th nearest training neighbour $d_k(\tilde{\mathbf{z}}^{(n)})$, and still needs to be compared to a preset threshold $\tau$ to be able to determine if the neural ODE integration is still in similar to the data it was trained on. This threshold $\tau$ is calibrated from said training distribution. When constructing the KD tree, the score $d_k$ is evaluated for every training snapshot against its own neighbours (excluding itself, because this is a trivial self-match at distance zero), producing a distribution of in-distribution scores. The threshold can then be set as the $q$-quantile of this distribution, with $q = 0.99$ as the default. If required, the user can set the threshold as $q \geq 1$ the implementation interprets the value as a safety margin above the worst training score, $\tau = q \cdot \max_i d_k(\mathbf{z}_i^{(n)})$, which is occasionally useful when calibration on a small or noisy training set would otherwise produce an overly tight threshold.
 
@@ -849,7 +850,7 @@ It is important to note that when the OOD flag is triggered, the latent neural O
 
 % -----------------------------------------------------------------------
 \section{Integrated Acceleration Workflow}
-\label{sect: workflow}
+\label{sect: acc_workflow}
 
 Having introduced and motivated the three trained components of the framework in sections ~\ref{sect: AE}--\ref{sect: OOD}, we are now ready to link these components into a single inference loop that runs alongside the WaterLily solver to accelerate it via cheaper latent-space updates. The autoencoder, neural ODE and integration monitor remain the same as in their training definitions and can now be applied inside a hybrid runtime that decides, at every step, whether the next state is advanced by WaterLily or by the latent dynamics $f_\phi$. 
 

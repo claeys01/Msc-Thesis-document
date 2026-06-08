@@ -21,7 +21,7 @@ The simulation clocks are kept aligned by monitoring the mismatch in $t^*$ acros
 While both simulations are advancing in time, relevant mean flow components (time-averaged velocity, pressure, and velocity fluctuations) are stored using the WaterLily \texttt{MeanFlow} object. The mean flow components of the hybrid and the reference simulation are sampled at a fixed interval \todo{Add exact value of saving interval}. It is important to note that during the latent rollout \ref{alg: predict_flex}, each new latent vector $\tilde{\mathbf{z}}$ that corresponds to the saving interval for the mean flow components is also saved, batched and decoded together with the final rollout prediction that has not been flagged as OOD by the KNN monitor, this assures that the mean flow components of the hybrid simulation are updated using the exact same amount of snapshots at the same $t^*$. 
 
 \subsection{Comparison metrics} 
-
+\label{subsect: 4_metrics}
 Because the cylinder wake at $Re = 2500$ is chaotic, the hybrid and reference trajectories can quickly separate in time when given a slight perturbation in the velocity field. Because of this, comparing $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ using a pointwise field error is not a meaningful measure of accuracy, and is therefore not used. The simulations are instead compared through statistical and integral
 quantities, which are the physically reproducible observables of the flow:
 
@@ -55,18 +55,17 @@ quantities, which are the physically reproducible observables of the flow:
 
   \item \textbf{Computational cost.} The end-to-end speed-up
         \begin{align}
-          S_\text{loop} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, cfd} + T_\text{wall}^\text{h, rollout}},
+          S_\text{loop} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, cfd} + T_\text{wall}^\text{h, rollout}} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot}},
           \qquad
           S_\text{eff}
           = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
         \end{align}
-    Where $S_\text{loop}$ is the speedup achieved through the switching between the latent rollouts and CFD iterations, and $S_\text{eff}$ is the speedup achieved of the complete integrated workflow as proposed in Figure~\ref{fig: integrated_workflow}. 
+    Where $S_\text{loop}$ is the speedup achieved by the hybrid loop (algorithm \ref{alg: run_hybrid}), and $S_\text{eff}$ is the speedup achieved by the complete integrated workflow as proposed in Figure~\ref{fig: integrated_workflow}. 
 
 \end{itemize}
+
+All of the metrics above are expressed over the full simulation time window (unless mentioned otherwise), being $0 \mapsto t^*_\text{end}$, which includes all CFD sections in the warmup, hybrid, training and retraining phases of the acceleration workflow. 
 \todo{finish later}
-
-
-
 
 
 % Short. Lifts the relevant subset of §3.1/§3.8 into a single place the reader
@@ -83,6 +82,7 @@ quantities, which are the physically reproducible observables of the flow:
 \label{sect: 4_hybrid}
 
 \subsection{Baseline Configuration}
+\label{subsect: 4_baseline}
 As a starting point for presenting the acceleration results, a base pipeline $\mathcal{P}$ is set up against which all subsequent experiments are compared. The hyperparameters for each $\mathcal{P}$ component ($\varphi_\theta, \; \psi_\theta, \; f_\phi, \; \mathcal{K}$) are listed and discussed in the paragraphs below.
 
 \subsubsection{Autoencoder}
@@ -112,8 +112,11 @@ Following the autoencoder design choices highlighted in \ref{sect: AE}, a baseli
         Curl weight               & $\lambda_\text{curl}$   & $100$ \\
         Weight decay              & $\lambda$               & $9\times10^{-4}$ \\
         Learning rate             & $\eta$                  & $1\times10^{-3}$ \\
+        Retrain Learning rate     & $\eta_r$                & $2\times10^{-4}$ \\
         Optimiser                 & --                      & AdamW \\ % TODO confirm AE optimiser
         Batch size                & --                      & $16$  \\
+        Epochs                    & --                      & $500$ \\
+        Retrain Epochs            & --                      & $100$ \\
         Trajectory Downsample     & --                      & $300$ \\
         Train - Validation split  & --                      & $0.2$ \\
         \bottomrule
@@ -156,8 +159,10 @@ The latent dynamics $\frac{\partial{\mathbf{z}}}{\partial t} = f_\phi(\mathbf{z}
         Optimiser                 & --                   & AdamW \\
         Learning rate             & $\eta$               & $1\times10^{-2}$ \\
         Iterations                & --                   & $250$ \\
+        Retrain Iterations        & --                   & $150$ \\
         Group size                & $n_s$                & $15$  \\
-        Continuity weight         & $\lambda_c$          & $250$ \\
+        Continuity weight         & $\lambda_c$          & $200$ \\
+        Retrain Continuity Weight & $\lambda_{c, r}$     & $400$ \\
         Training samples          & --                   & $300$ \\
         \bottomrule
     \end{tabular}
@@ -167,7 +172,7 @@ The latent dynamics $\frac{\partial{\mathbf{z}}}{\partial t} = f_\phi(\mathbf{z}
 
 As discussed in \ref{subsect: NODEarch}, the network is kept deliberately small With $N_z = 16$ and $\texttt{dense\_mult}=3$ it maps the latent state from $16 \to 48 \to 16$, which is sufficient to capture the smooth, quasi-periodic latent dynamics of the shedding cycle while keeping the rollout cost well below that of a conventional solver step. 
 
-The neural ODE uses \texttt{tanhshrink} as activation function, $x \mapsto x - \tanh x$. This choice was made empirically during the earlier single-shooting experiments of Section~\ref{subsect: NODEtraining}, where, among activation functions tried, it produced the most stable fits over the horizons on which single shooting was able to converge to a solution. Under the multiple-shooting scheme adopted here, the fit is decomposed into $N_s+1$ independent segment integrations ~\eqref{eq: node_loss_ms}, which are treated as independent short single-shooting operations. Because the training stability over long single-shooting is not a relevant metric anymore in the multiple shooting regime, the precise form of the activation function was found to not be decisive for this flow case. Because of this the choice of \texttt{tanhshrink} is retained here without re-tuning. 
+The neural ODE uses \texttt{tanhshrink} as activation function, $x \mapsto x - \tanh x$. This choice was made empirically during the earlier single-shooting experiments of Section~\ref{subsect: NODEtraining}, where, among activation functions tried, it produced the most stable fits over the horizons on which single shooting was able to converge to a solution. Under the multiple-shooting scheme adopted here, the fit is decomposed into $N_s+1$ independent segment integrations ~\eqref{eq: node_loss_ms}, which are treated as independent short single-shooting operations. Because the training stability over long single-shooting is not a relevant metric anymore in the multiple shooting regime, the precise form of the activation function was found to not be decisive for this flow case. Because of this, the choice of \texttt{tanhshrink} is retained here without re-tuning. 
 
 
 The group size $n_s$ and continuity weight $\lambda_c$ are set empirically at $15$ and $200$; their influence on rollout
@@ -192,50 +197,279 @@ The hybrid solver alternates between WaterLily time integration and latent rollo
         Warmup window   & $t_\text{handoff}^*$ & $20$ \\
         Training window & $t_\text{train}^*$     & $17.5$ \\ % TODO confirm: slides = 17.5
         Update window   & $t_\text{update}^*$    & $10$ \\
-        Hybrid horizon            & $t_\text{end}^*$     & $50$ \\
+        Hybrid horizon            & $t_\text{end}^*$     & $100$ \\
         Prediction cadence        & $n_\text{switch}$       & $150$  \\
-        Integration step          & $\Delta t^*$ & $0.35 \cdot \frac{U}{L}$ \\
+        Integration step          & $\Delta t^*$ & $0.011$ \\
         Max amount of OOD flags   & $n_\text{max, flags}$        & $3$ flags \\
         \bottomrule
     \end{tabular}
      \caption{Baseline hybrid-solver and OOD-monitor configuration.}
     \label{tab: 4_hybrid_config}
 \end{table}
+\todo{explain why i chose that $\Delta t^*$}
 
 The values of $t^*_\text{handoff}, \; t^*_\text{train}$ and $ t^*_\text{update}$ were empirically chosen to display the learning progress of the ML pipeline. Where a $t^*_\text{train} = 17.5$ corresponds to roughly 4 shedding periods, as visible in Figure~\ref{fig: 256_forces}, for the discussed flow case. The difference of $2,5$ with $t^*_\text{handoff} = 20$ is subsequently used as test data for the AE training to perform a preliminary assessment of the AE performance when tasked with compressing flow snapshots outside of its initial training data. 
 
-The cadence of the hybrid loop is controlled by 2 variables, namely $n_\text{switch}$ and $\Delta t_\text{pred}$. Where $n_\text{switch}$ is the number of CFD steps between rollout attempts in the hybrid loop (Algorithm~\ref{alg: run_hybrid}). It controls the stabilisation time between rollout attempts and, in effect, also controls the achievable speedup by the hybrid loop; each block of $n_\text{switch}$ CFD steps is the cost of letting the injected field relax back to a stable state before the next rollout attempt. The second variable, $\Delta t_\text{pred}$ sets the
-physical time advanced per latent step, so a successful rollout of $n_\text{integr}$ steps injects $n_\text{integr}\!\cdot\!\Delta t_\text{pred}$ of simulation time at once. A larger $\Delta t_\text{pred}$ allows for a bigger gain per step, but advances the latent state further, raising potential drift and the chance of crossing the KNN threshold (Section~\ref{sect: KNN}). 
+The cadence of the hybrid loop is controlled by $n_\text{switch}$ and $\Delta t_\text{pred}$. Where $n_\text{switch}$ is the number of CFD steps between rollout attempts in the hybrid loop (Algorithm~\ref{alg: run_hybrid}). It controls the stabilisation time between rollout attempts and, in effect, also controls the achievable speedup by the hybrid loop; each block of $n_\text{switch}$ CFD steps is the cost of letting the injected field relax back to a stable state before the next rollout attempt. The second variable, $\Delta t_\text{pred}$ sets the physical time advanced per latent step, so a successful rollout of $n_\text{integr}$ steps injects $n_\text{integr}\!\cdot\!\Delta t_\text{pred}$ of simulation time at once. A larger $\Delta t_\text{pred}$ allows for a bigger gain per step, but advances the latent state further, raising potential drift and the chance of crossing the KNN threshold (Section~\ref{sect: KNN}). 
+
+\todo{say that the proposed parallel running of the pipeline training was not done}
+
+\subsection{Wall-Time Performance}
+
+Having established the parameters of the baseline hybrid simulation in \ref{subsect: 4_baseline}, the computational performance of the hybrid simulation can be assessed by means of wall time. Figure~\ref{fig: hybrid_bars} shows the acceleration performance of the hybrid loop compared to the reference simulation in terms of cost per CTU and total wall-time cost.
+
+\begin{figure}[htb]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/Results/base/bars_timing.png}
+        \caption{Mean wall-time cost per CTU. The hybrid loop is resolved into its conventional CFD and latent rollout contributions.}
+        \label{fig: base_cost_ctu}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/Results/base/bars_total.png}
+        \caption{Total wall time of the hybrid loop and the reference simulation over the same convective-time window.}
+        \label{fig: base_cost_total}
+    \end{subfigure}
+    \caption{Comparison of reference simulation to the hybrid loop in terms of (a) cost per CTU and (b) actual wall time cost}
+    \label{fig: hybrid_bars}
+\end{figure}
+
+Figure~\ref{fig: hybrid_bars} highlights how cheap a single rollout of $\mathcal{P}$ is compared to regular CFD integration. Using $\mathcal{P}$ to predict a single CTU is $84.6$ times cheaper than calculating the same time window using regular CFD timestepping. This bar chart, however, does not include wall time for the training processes of $\varphi_\theta$, $\psi_\theta$, and $f_\phi$. 
+
+When comparing the total wall time over the same simulation window (Figure~\ref{fig: base_cost_total}), the hybrid loop is able to integrate $\mathcal{S}$ to $t^*_\text{end}$ in $58.85$ seconds compared to $\mathcal{S}_\text{ref}$ integrating the same time window in $86.63$ seconds. Which means the speedup achieved by the hybrid loop can be expressed as:
+\begin{equation}
+    S_\text{loop} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot}} = \frac{86.63}{58.85} = 1.47
+\end{equation}
+
+This value for $S_\text{loop}$ is far below what the per-CTU rollout cost in \autoref{fig: base_cost_ctu} suggests, because the loop still spends most of its time in regular CFD: every rollout is followed by $n_\text{switch} = 150$ CFD steps to stabilise the field, and these steps are slightly more expensive than in the reference run due to the extra encoding and monitoring carried out at each step. The cheap rollout sets the upper bound for the acceleration that the hybrid loop is able to achieve, but the number of rollouts attempted (governed by $n_\text{flag, max}$) and the number of CFD steps between rollouts decide how close the hybrid loop is able to get to this upper bound.
+
+This per-CTU advantage is also specific to the base-case resolution. The WaterLily solver is memory-bound, so its cost per CTU grows with grid size~\cite{Weymouth2025}, whereas the rollout cost is fixed by the latent dimension $N_z = 16$ and is independent of the grid. The ceiling on $S_\text{loop}$ therefore rises at finer resolutions: the present $256^2$ grid is a comparatively cheap case in which to demonstrate the gain, and the relative advantage of the latent rollout would be larger on a grid where CFD is more expensive.
+
+To assess the actual speedup of the complete acceleration workflow, as described in \ref{sect: acc_workflow}, the wall times of the training procedures of the ML components in $\mathcal{P}$ need to be accounted for. Table~\ref{tab: wall_timing_hybrid} gives the wall time of the full pipeline, including the training of the networks. The initial training dominates: the autoencoder takes $522$ s ($37.76\%$), and the neural ODE $360$ s ($26.04\%$), so building the networks accounts for almost two-thirds of the total time before a single rollout. The three retraining cycles add a further ${\sim}460$ s, while the actual CFD-plus-rollout work contributes less than $1\%$ of the total of $1382.56$~s.
+
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{llrr}
+        \toprule
+        Phase & Component & Time (s) & \% of total \\
+        \midrule
+        Warmup & -- & 21.16 & 1.53 \\
+        \midrule
+        \multirow{2}{*}{Train} & AE   & 522.00 & 37.76 \\
+                               & NODE & 360.00 & 26.04 \\
+        \midrule
+        \multirow{3}{*}{Hybrid section 1} & CFD + rollout & 1.17 & 0.09 \\
+                                          & CFD + rollout & 1.19 & 0.09 \\
+                                          & CFD + rollout & 1.17 & 0.08 \\
+        \midrule
+        \multirow{3}{*}{Retrain 1} & Updating data    & 9.58   & 0.69 \\
+                                   & AE               & 66.00  & 4.79 \\
+                                   & NODE             & 132.00 & 9.58 \\
+        \midrule
+        \multirow{3}{*}{Hybrid section 2} & CFD + rollout & 1.18 & 0.09 \\
+                                          & CFD + rollout & 1.4 & 0.10 \\
+                                          & CFD + rollout & 1.21 & 0.09 \\
+        \midrule
+        \multirow{3}{*}{Retrain 2} & Updating data    & 9.22   & 0.67 \\
+                                   & AE               & 66.00  & 4.79 \\
+                                   & NODE             & 174.00 & 12.62 \\
+        \midrule
+        \multirow{3}{*}{Hybrid section 3} & CFD + rollout & 1.16 & 0.08 \\
+                                          & CFD + rollout & 1.17 & 0.09 \\
+                                          & CFD + rollout & 1.16 & 0.08 \\
+        \midrule
+        Retrain 3 & Updating data & 7.79 & 0.57 \\
+        \midrule
+        \textbf{Total} & & \textbf{1,382.56} & \textbf{100.00} \\
+        \bottomrule
+    \end{tabular}
+    \caption{Wall-clock breakdown of the hybrid simulation pipeline (base run).}
+    \label{tab: wall_timing_hybrid}
+\end{table}
+\todo{make sure sum matches this and formula below}
+Taking training into account, the effective speedup of the full workflow is
+\begin{align}
+    S_\text{eff}
+    = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
+    = \frac{86.63}{58.85 + 1320.00}
+    \approx 0.06,
+\end{align}
+
+This means that for a single hybrid run, the complete workflow is roughly an order of magnitude slower than simply running the reference over the selected window $0 \mapsto t^*_\text{end}$. One of the reasons of To put the training times of the autoencoder and the neural ODE in perspective: if training of these models were to happen in parallel, $t^*_\text{handoff}$ would be pushed back by $1018$ CTU, which would put $t^*_\text{handoff}=1038$ CTU. It would be only at this simulation time that the effective cost of $\mathcal{S}$ could be reduced by performing rollout predictions.  
+
+This means that, for a single hybrid run, the complete workflow is roughly an order of magnitude slower than simply running the reference over the selected window $0 \mapsto t^*_\text{end}$. The reason is purely the fixed training cost, over this window the hybrid loop saves $86.63 - 58.85 = 27.78$ s, so a single run would need to integrate for roughly $T_\text{wall}^\text{h, training} / (\text{saving per CTU}) \approx 5000$ CTU before the training cost can be repaid, against the $100$ CTU that were actually integrated. This cost can be recovered only if a trained $\mathcal{P}$ is reused across ${\sim}50$ comparable runs. This is only realistic in the transfer setting of \ref{sect: acc_workflow}, where $\mathcal{P}$ is fine-tuned rather than trained from scratch.
+
+If, as proposed in \ref{sect: acc_workflow}, training happens parallel to the running simulation $\mathcal{S}$, the handoff time $t^*_\text{handoff}$ would be pushed back significantly. Since the training of the autoencoder and the neural ODE together takes $882$ s, which is equivalent to ${\sim}1018$ CTU of reference integrations. The base window of $100$ CTU is far too short to hide the training behind CFD: the reference run would have finished long before the networks would have finished training.
 
 
 
-\subsection{Force Coefficients and Wall Time}
-\label{subsect: 4_forces_walltime}
-
-\begin{figure}[H]
+\subsection{Force Coefficients}
+\label{subsect: 4_forces}
+\todo{change rollout name to $\tilde{\mathcal{T}}$}
+\begin{figure}[ht]
     \centering
     \includegraphics[width=\linewidth]{figures/Results/base/hybrid_forces.pdf}
-    \caption{Caption}
+    \caption{Drag and lift coefficients over time for the reference (dash--dot) and hybrid (solid) simulations, with NODE rollout predictions overlaid (black). Green bands mark pure-CFD intervals (warm-up and retraining); blue bands mark the hybrid windows in which latent rollouts are attempted. Retraining is triggered at $t^* \approx 30.2$, $t^*$, $t^* \approx 73.76$ and $t^* \approx 92.07$}
     \label{fig: base_forces}
 \end{figure}
 
+Reading Figure~\ref{fig: base_forces} chronologically, following the time axis as in the integrated workflow diagram \ref{fig: integrated_workflow}, the 4 stages of the acceleration workflow can also be seen in Figure~\ref{fig: base_forces}. Beginning with the warm-up phase, the hybrid and reference simulations start from a matching initial state at $t^*=0$. From there, both simulations are advanced in time using WaterLily, and instantaneous flow snapshots are saved to disk as training data for $\mathcal{P}$. Having reached $t^*_\text{train}$, the components of $\mathcal{P}$ can be trained; exact dynamics and time logging of the training procedures are reported in \ref{subsect: 4_training_dynamics}. After the training procedures, the hybrid loop \ref{alg: run_hybrid} is engaged at $t^*_\text{handoff}=20$ and the first rollouts are attempted. 
 
-% Figure: plt_combined.png-style 3-panel: C_D / C_L vs t (hybrid + reference),
-% mode log (warmup / train / hybrid / retrain colour bands), wall-time bar.
-% Numbers: mean |C_D - C_D_ref|, RMS(C_L - C_L_ref), overall_speedup.
+The black lines in Figure~\ref{fig: base_forces} trace the pressure force coefficients on the cylinder wall that $\mathcal{P}$ has rolled out and injected back into the simulation. The rollouts track the reference $C_L$ closely at first, but a small phase and amplitude error accumulates as each latent trajectory is integrated further from its initial point; this is the drift that the KNN monitor is designed to catch, and each rollout is cut off just before drifting outside of the known latent distribution range. An example of this drift is visible at the end of the second hybrid window (around $t^* \approx 74$), the hybrid $C_L$ trace has accumulated a visible phase offset relative to the reference, the two signals are no longer in step, and there is a significant amplitude mismatch. Because of the long rollout and the chaotic nature of the wake, a certain amount of divergence is expected and is in itself not an error; however, it places $\mathcal{S}$ on a different point of the shedding cycle than the reference, so the two simulations are no longer pointwise comparable and only their statistical observables remain meaningful. 
+
+The per-rollout behaviour of the hybrid loop is summarised in \autoref{tab: base_rollout_summary}, listing the number of steps each latent rollout advanced the simulation before the KNN monitor returned control, along with the physical time gained and the score at hand-off.
+
+\begin{table}[htb]
+  \centering
+  \sisetup{table-number-alignment = center}
+  \begin{tabular}{
+    c
+    l
+    S[table-format=3.0]
+    S[table-format=2.3]
+    S[table-format=2.3]
+    S[table-format=1.3]
+    S[table-format=1.3]
+  }
+    \toprule
+    {\#} & NODE model & {Steps} & {$\Delta t^*$} & {$t^*_\text{r, end}$} & {KNN score} & {Threshold} \\
+    \midrule
+    $1$ & initial     & 101  & 1.105 & 21.687 & 0.328 & 0.326 \\
+    $2$ & initial     & 217  & 2.373 & 25.869 & 0.329 & 0.326 \\
+    $3$ & initial     & 231  & 2.526 & 30.233 & 0.331 & 0.326  \\
+    \hline
+    $4$ & 1st retrain & 457  & 4.998 & 45.247 & 0.384 & 0.383 \\
+    $5$ & 1st retrain & 1615 & 17.664 & 64.740 & 0.387 & 0.383 \\
+    $6$ & 1st retrain & 642  & 7.022 & 73.757 & 0.384 & 0.383 \\
+    \hline
+    $7$ & 2nd retrain & 1    & 0.011 & 83.789 & 0.473 & 0.413 \\
+    $8$ & 2nd retrain & 326  & 3.566 & 89.284 & 0.417 & 0.413 \\
+    $9$ & 2nd retrain & 82   & 0.897 & 92.075 & 0.414 & 0.413 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Per-rollout summary of the KNN-gated NODE inference. Rollouts~1--3 use the initial NODE; rollouts~4--6 use the retrained NODE (raised KNN threshold). Rollouts~4 and~6 were rejected at the encoder gate after a single step.}
+  \label{tab: base_rollout_summary}
+\end{table}
+
+\autoref{tab: base_rollout_summary} shows interesting patterns. Firstly, every rollout completed rollout is cut off the moment its KNN score crosses the threshold (rollout~1 at $0.328$ against $0.326$, for example), verifying that the adaptive scheme of Algorithm~\ref{alg: predict_flex} stops each trajectory at the edge of the known latent distribution. 
+
+Secondly, the length of each rollout varies over the hybrid regions. This variation in rollout length reflects how well the current state of $\mathcal{S}$ is represented in the encoded training trajectories (produced by the trained encoder $\varphi_\theta$) on which $f_\phi$ and the KNN monitor $\mathcal{K}$ have been trained and fit. Since both components draw their logic from the same set of training trajectories $\boldsymbol{\mathcal{T}}_z$, $f_\phi$ can only have learned the dynamics that those trajectories contain, and $\mathcal{K}$ scores any new state by its distance to those same points. If the current state of $\mathcal{S}$ is in a regime that has not been represented by a majority of the states in $\boldsymbol{\mathcal{T}}_z$, it can either serve as a bad initial state for the NODE integration, or it can be in a regime that is not covered by the latent dynamics $f_\phi$. Either possibility will trigger a quick flag from the KNN monitor, resulting in a shorter rollout length.  
+
+The rollout length is therefore a direct reflection of the overlap between the active flow regime and the distribution of latent states in the training trajectories. This is visible in both \autoref{fig: base_forces} and \autoref{tab: base_rollout_summary}, where in the first hybrid region, the neural ODE produces rollouts of mostly similar lengths, showing that it has learned and fit the dynamics of the warmup CFD steps to a certain confidence, but to produce longer rollouts, more data is needed. In rollouts $4-6$, $f_\phi$ has been updated to produce longer rollouts that stay inside the regime that can be represented by $\boldsymbol{\mathcal{T}}_u$. These longer rollouts also show a gradual decay in oscillation amplitude over their length, indicating that $\mathcal{P}$ has learned a slightly dissipative version of the shedding cycle. This dissipative behaviour does not get flagged by the KNN monitor, since it only flags the rollout once it \emph{exceeds} $\tau$. 
+
+This dissipative behaviour also has a downstream effect. Each of the rollouts $4$--$6$ inject a slightly lower-amplitude field into $\mathcal{S}$ through the coupling routine of \autoref{sect: coupling}; this compounded error accumulates and pushes the simulation into a state that $\boldsymbol{\mathcal{T}}_z$ no longer represents. The subsequent retrain phase attempts to close this gap by augmenting new CFD snapshots to the existing training data $\boldsymbol{\mathcal{T}}_u^{(r+1)}$ as a minority of the snapshots. This means that the bulk of the multiple-shooting loss remains dominated by the older, well-represented dynamics, and the converged weights $\phi^{(r+1)}$ fit the new state only weakly. As a result, both $f_\phi$ and $\mathcal{K}$ remain weakly fit to this regime, so the encoded initial state is a poor starting point for the integration and an immediate KNN trigger. That is why 2 out of 3 rollouts in the last hybrid section are cut short almost as soon as they begin (\autoref{fig: base_forces}), after which the framework resumes data collection to update the network weights. 
+
+The effect of this dissipative behaviour of $\mathcal{P}$ is reflected in \autoref{tab: base_force_error}, where the mean $C_D$ gets conserved compared to the reference simulation, whereas the RMS value of the $C_L$ does appear to show the effects of the dissipative behaviour at the end of the second rollout. 
+
+\begin{table}[htbp]
+\centering
+\sisetup{table-number-alignment = center}
+\begin{tabular}{
+  l
+  l
+  S[table-format=-1.3]
+  S[table-format=-1.3]
+  S[table-format=1.3]
+  S[table-format=2.3]
+}
+\toprule
+ & & \multicolumn{2}{c}{Solution} & \multicolumn{2}{c}{Error} \\
+\cmidrule(lr){3-4} \cmidrule(lr){5-6}
+Region & Quantity & {Reference} & {Hybrid} & {$e$} & {$e_{\mathrm{rel}}$ [\%]} \\
+\midrule
+\multirow{2}{*}{Full domain}
+  & $\langle C_D \rangle$ & -1.588 & -1.586 & 0.003 & 0.168 \\
+  & $C_L^{\mathrm{rms}}$  &  1.185 &  1.144 & 0.041 & 3.479 \\
+\addlinespace
+\multirow{2}{*}{Hybrid regions}
+  & $\langle C_D \rangle$ & -1.582 & -1.582 & 0.003 & 0.169 \\
+  & $C_L^{\mathrm{rms}}$  &  1.184 &  1.050 & 0.135 & 11.361 \\
+\bottomrule
+\end{tabular}
+\caption{Time-mean drag, and RMS lift for the reference and hybrid simulations, with absolute error $e$ and relative error $e_\text{rel}$. The full-domain row averages over the whole window $0 \mapsto t^*_\text{end}$; the hybrid-region row restricts the averaging to the intervals in which latent rollouts were active.}
+\label{tab: base_force_error}
+\end{table}
+
+The mean drag is recovered to within $e_{\mathrm{rel}} \approx 0.17\%$ in both the full domain and the hybrid regions, since $\langle C_D \rangle$ depends only on the first moment of the signal and carries no information about the oscillation amplitude. Where $C_L^{\mathrm{rms}}$, being peak-weighted, is sensitive to amplitude mismatches and shows a lower value for the hybrid simulation during both the whole simulation window, as in the hybrid sections. Over the full computational window, the relative error is $3.48\%$, but when restricting the averaging window to the hybrid regions, it rises to $11.36\%$. The full-domain figure is diluted by the pure-CFD intervals, which track the reference and contribute their undamped lift-coefficient amplitudes to the global RMS. The hybrid-region $C_L^{\mathrm{rms}}$ error is therefore the more faithful measure of error, confirming that the amplitude decay in rollouts $4$--$6$ translates into a measurable loss of lift fluctuation. 
+
+
 
 \subsection{Mean Flow and Reynolds-Stress Statistics}
 \label{subsect: 4_meanflow_rst}
-% Figure: rst_comp_plot + plt_meanflow side by side.
-% Quantitative: spatial L2 errors on <u>, <v>, <u'u'>, <v'v'>, <u'v'>.
+
+The force coefficients of Section~\ref{subsect: 4_forces} certify that the hybrid loop reproduces the \emph{integrated} loading on the body, but they collapse the entire flow onto two scalar time series and therefore say nothing about \emph{where} in the domain the hybrid and reference solutions agree or diverge. Because of the chaotic nature of the cylinder wake at the current Reynolds number, a small perturbation can easily decorrelate hybrid and the reference trajectories. To asses the performance of the accelerated simulation \autoref{fig: base_meanflow} shows the time averaged velocity components ($\langle u\rangle, \langle v\rangle$) of the hybrid simulation (right columns) compared to the reference (middle column) and their absolute difference (left column).
+
+\begin{figure}[htbp]
+  \centering
+  \setlength{\tabcolsep}{0pt}        % no inter-column padding if you switch to tabular
+  \captionsetup[subfigure]{skip=1pt} % shrink gap between image and subcaption
+
+  % --- row 1 ---
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/meanflow_panels/meanflow_u_hybrid.pdf}
+    \caption{}
+    \label{fig: base_hybrid_mean_u}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/meanflow_panels/meanflow_u_reference.pdf}
+    \caption{}
+    \label{fig: base_ref_mean_u}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/meanflow_panels/meanflow_u_abserror.pdf}
+    \caption{}
+    \label{fig: base_diff_mean_u}
+  \end{subfigure}
+
+  \vspace{1pt} % vertical gap between the two rows; set to 0pt for maximal tightness
+
+  % --- row 2 ---
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/meanflow_panels/meanflow_v_hybrid.pdf}
+    \caption{}
+    \label{fig: base_hybrid_mean_v}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/meanflow_panels/meanflow_v_reference.pdf}
+    \caption{}
+    \label{fig: base_ref_mean_v}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/meanflow_panels/meanflow_v_abserror.pdf}
+    \caption{}
+    \label{fig: base_diff_mean_v}
+  \end{subfigure}
+\caption{Mean velocity components: $\langle u\rangle$ (top),
+$\langle v\rangle$ (bottom). Columns: $\mathcal{S}$ (a,~d), $\mathcal{S}_\text{ref}$ (b,~e),
+absolute difference (c,~f). Lengths scaled by $L$, velocities by $U$.}
+\label{fig: base_meanflow}
+\end{figure}
+
+The time averaged velocity components are computed by sampling instantaneous flow snapshots of $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ at the exact same $t^*$ using a matching sampling interval. Even if the time dependant properties of $\mathcal{S}$ are different to those of $\mathcal{S}_\text{ref}$, the time averaged flow fields should produce the same statistics. 
+
+\autoref{fig: base_hybrid_mean_u} and \autoref{fig: base_ref_mean_u} show that both $\langle u\rangle$ have converged in time, showing smooth contours and gradients around the cylinder walls. Where the only visual difference can be seen in the wake of the cylinder, where the hybrid simulation shows to be less smooth than the reference. \autoref{fig: base_hybrid_mean_v} and \autoref{fig: base_ref_mean_v} also seem to to show similar behaviour, where the contours of the  mean spanwise flow of the reference is a bit less smooth compared to that of the reference simulation, indicating that the hybrid simulation lacks a small amount of averaging data. 
+
+The absolute-difference fields (\autoref{fig: base_diff_mean_u} \& \autoref{fig: base_diff_mean_v}) show that the discrepancy between the two simulations is negligible over the body and the upstream region and is confined almost entirely to the wake, $x/L \gtrsim 1$. The error peaks at approximately $0.13\,U$ for $\langle u\rangle$ and $0.08\,U$ for $\langle v\rangle$ mostly in the positive spanwise area just behind the cylinder. This matches what could be seen in \autoref{fig: base_forces}, where the rollouts produced lift forces with a lesser amplitude in the positive region of the cylinder wall. Which is exactly the region where the most difference between the mean flow components exists. 
+
+To investigate the influence of the  rollouts on the velocity fluctuations of $\mathcal{S}$
+
+Having computed the mean 
+
 
 \subsection{Physical Consistency of the Hybrid State}
 \label{subsect: 4_physical_consistency}
+% fft analysis here
 % Divergence residual ||∇·û|| over time, max & mean.
 % Snapshot vorticity comparison hybrid vs reference at 3 instants.
 % Important framing: the hybrid trajectory is one realisation of a chaotic
 % system, so pointwise matching is the wrong test; statistical matching is
 % the right one. State this explicitly.
+
+\subsection{Training Dynamics}
+\label{subsect: 4_training_dynamics}
 
 % -----------------------------------------------------------------------
 \section{Autoencoder Reconstruction Quality}
@@ -314,6 +548,8 @@ physical time advanced per latent step, so a successful rollout of $n_\text{inte
 \label{subsect: 4_tl_re}
 % Hybrid run at Re ≠ 2500 using TL1-fine-tuned AE. Show what fraction of
 % training cost is recovered relative to training from scratch.
+
+\subsection{Transfer to a Lower Reynolds Number}
 
 
 % -----------------------------------------------------------------------
