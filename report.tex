@@ -24,6 +24,10 @@
 % \setcounter{tocdepth}{1}
 \setlist{itemsep=-2pt} % Reducing white space in lists slightly
 \renewcommand{\deg}{\si{\degree}\xspace} % Use \deg easily, everywhere
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.9}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\floatpagefraction}{0.8}
 
 % defining colors for AE picture from PlotNeuralNet
 \def\ConvColor{rgb:yellow,5;red,2.5;white,5}
@@ -92,10 +96,9 @@
 
 \input{mainmatter/1. Introduction}
 
-% \input{mainmatter/2. Literature Review}
-\setcounter{chapter}{2}  % next \chapter will be Chapter 3
+\input{mainmatter/2. Literature Review}
+% \setcounter{chapter}{2}  % next \chapter will be Chapter 3
 \input{mainmatter/3. Methodology}
-% \input{mainmatter/4. Validation}
 \input{mainmatter/5. Results}
 
 % \input{mainmatter/Scratch}

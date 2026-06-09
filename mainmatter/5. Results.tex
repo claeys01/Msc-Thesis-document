@@ -304,8 +304,6 @@ This means that, for a single hybrid run, the complete workflow is roughly an or
 
 If, as proposed in \ref{sect: acc_workflow}, training happens parallel to the running simulation $\mathcal{S}$, the handoff time $t^*_\text{handoff}$ would be pushed back significantly. Since the training of the autoencoder and the neural ODE together takes $882$ s, which is equivalent to ${\sim}1018$ CTU of reference integrations. The base window of $100$ CTU is far too short to hide the training behind CFD: the reference run would have finished long before the networks would have finished training.
 
-
-
 \subsection{Force Coefficients}
 \label{subsect: 4_forces}
 \todo{change rollout name to $\tilde{\mathcal{T}}$}
@@ -316,7 +314,7 @@ If, as proposed in \ref{sect: acc_workflow}, training happens parallel to the ru
     \label{fig: base_forces}
 \end{figure}
 
-Reading Figure~\ref{fig: base_forces} chronologically, following the time axis as in the integrated workflow diagram \ref{fig: integrated_workflow}, the 4 stages of the acceleration workflow can also be seen in Figure~\ref{fig: base_forces}. Beginning with the warm-up phase, the hybrid and reference simulations start from a matching initial state at $t^*=0$. From there, both simulations are advanced in time using WaterLily, and instantaneous flow snapshots are saved to disk as training data for $\mathcal{P}$. Having reached $t^*_\text{train}$, the components of $\mathcal{P}$ can be trained; exact dynamics and time logging of the training procedures are reported in \ref{subsect: 4_training_dynamics}. After the training procedures, the hybrid loop \ref{alg: run_hybrid} is engaged at $t^*_\text{handoff}=20$ and the first rollouts are attempted. 
+Reading Figure~\ref{fig: base_forces} chronologically, following the time axis as in the integrated workflow diagram \ref{fig: integrated_workflow}, the 4 stages of the acceleration workflow can also be seen in Figure~\ref{fig: base_forces}. Beginning with the warm-up phase, the hybrid and reference simulations start from a matching initial state at $t^*=0$. From there, both simulations are advanced in time using WaterLily, and instantaneous flow snapshots are saved to disk as training data for $\mathcal{P}$. Having reached $t^*_\text{train}$, the components of $\mathcal{P}$ can be trained; exact loss dynamics of the ML components are reported in \todo{fix reference} \ref{subsect: 4_training_dynamics}. After the training procedures, the hybrid loop \ref{alg: run_hybrid} is engaged at $t^*_\text{handoff}=20$ and the first rollouts are attempted. 
 
 The black lines in Figure~\ref{fig: base_forces} trace the pressure force coefficients on the cylinder wall that $\mathcal{P}$ has rolled out and injected back into the simulation. The rollouts track the reference $C_L$ closely at first, but a small phase and amplitude error accumulates as each latent trajectory is integrated further from its initial point; this is the drift that the KNN monitor is designed to catch, and each rollout is cut off just before drifting outside of the known latent distribution range. An example of this drift is visible at the end of the second hybrid window (around $t^* \approx 74$), the hybrid $C_L$ trace has accumulated a visible phase offset relative to the reference, the two signals are no longer in step, and there is a significant amplitude mismatch. Because of the long rollout and the chaotic nature of the wake, a certain amount of divergence is expected and is in itself not an error; however, it places $\mathcal{S}$ on a different point of the shedding cycle than the reference, so the two simulations are no longer pointwise comparable and only their statistical observables remain meaningful. 
 
@@ -454,110 +452,237 @@ The time averaged velocity components are computed by sampling instantaneous flo
 
 The absolute-difference fields (\autoref{fig: base_diff_mean_u} \& \autoref{fig: base_diff_mean_v}) show that the discrepancy between the two simulations is negligible over the body and the upstream region and is confined almost entirely to the wake, $x/L \gtrsim 1$. The error peaks at approximately $0.13\,U$ for $\langle u\rangle$ and $0.08\,U$ for $\langle v\rangle$ mostly in the positive spanwise area just behind the cylinder. This matches what could be seen in \autoref{fig: base_forces}, where the rollouts produced lift forces with a lesser amplitude in the positive region of the cylinder wall. Which is exactly the region where the most difference between the mean flow components exists. 
 
-To investigate the influence of the  rollouts on the velocity fluctuations of $\mathcal{S}$
 
-Having computed the mean 
+\subsubsection{Reynolds Stress Components}
 
+Having computed the time-averaged velocity components, the time-averaged fluctuations of the flow can also be assessed. Using \eqref{eq: ReDecompose}, fluctuating velocity components are extracted and studied to assess the effect of the rollouts on the fluctuating field of $\mathcal{S}$. This allows the three independent components of the Reynolds-stress tensor (RST) to be compared against the reference. Where the normal stresses $\langle u'u'\rangle$ and $\langle v'v'\rangle$ display the energy of the streamwise and transverse fluctuations, and the shear stress $\langle u'v'\rangle$ indicates the momentum transport across the wake.
+
+
+\begin{figure}[htp]
+  \centering
+  \setlength{\tabcolsep}{0pt}
+  \captionsetup[subfigure]{skip=1pt}
+
+  % --- column headers ---
+  \makebox[0.32\textwidth]{$\mathcal{S}$}
+  \makebox[0.32\textwidth]{$\mathcal{S}_\text{ref}$}
+  \makebox[0.32\textwidth]{$\bigl| \mathcal{S}-\mathcal{S}_\text{ref}\bigr|$}\par
+  \vspace{1pt}
+
+  % --- row 1: <u'u'> ---
+  \rotatebox{90}{\makebox[0.30\textwidth][c]{$\langle u'u'\rangle$}}%
+  \begin{subfigure}[t]{0.3\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/rst_panels/rst_uu_hybrid.pdf}
+    % \caption{}
+    \label{fig: base_rst_uu_hybrid}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.3\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/rst_panels/rst_uu_reference.pdf}
+    % \caption{}
+    \label{fig: base_rst_uu_ref}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.3\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/rst_panels/rst_uu_abserror.pdf}
+    % \caption{}
+    \label{fig: base_rst_uu_diff}
+  \end{subfigure}
+
+  \vspace{-1.5em}
+
+  % --- row 2: <v'v'> ---
+  \rotatebox{90}{\makebox[0.30\textwidth][c]{$\langle v'v'\rangle$}}%
+  \begin{subfigure}[t]{0.3\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/rst_panels/rst_vv_hybrid.pdf}
+    % \caption{}
+    \label{fig: base_rst_vv_hybrid}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.3\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/rst_panels/rst_vv_reference.pdf}
+    % \caption{}
+    \label{fig: base_rst_vv_ref}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.3\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/rst_panels/rst_vv_abserror.pdf}
+    % \caption{}
+    \label{fig: base_rst_vv_diff}
+  \end{subfigure}
+
+  \vspace{-1.5em}
+
+  % --- row 3: <u'v'> ---
+  \rotatebox{90}{\makebox[0.30\textwidth][c]{$\langle u'v'\rangle$}}%
+  \begin{subfigure}[t]{0.3\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/rst_panels/rst_uv_hybrid.pdf}
+    % \caption{}
+    \label{fig: base_rst_uv_hybrid}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.3\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/rst_panels/rst_uv_reference.pdf}
+    % \caption{}
+    \label{fig: base_rst_uv_ref}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.3\textwidth}
+    \includegraphics[width=\linewidth]{figures/Results/base/rst_panels/rst_uv_abserror.pdf}
+    % \caption{}
+    \label{fig: base_rst_uv_diff}
+  \end{subfigure}
+
+  \caption{Reynolds-stress components, top to bottom:
+    $\langle u'u'\rangle$, $\langle v'v'\rangle$, $\langle u'v'\rangle$.
+    Columns: hybrid $\mathcal{S}$, reference $\mathcal{S}_\text{ref}$,
+    and absolute difference $\bigl|\mathcal{S}-\mathcal{S}_\text{ref}\bigr|$.
+    Lengths scaled by $L$, velocities by $U$.}
+  \label{fig: base_rst}
+\end{figure}
+
+Just as the RST components reported in the work by \textcite{Parnaudeau2008}, the hybrid and the reference simulation both produce the expected wake structure: a twin-lobed $\langle u'u'\rangle$ from the separating shear layers, a centreline-peaked $\langle v'v'\rangle$ in the region $1$--$2\, L$ downstream with the largest magnitude of the three, and an antisymmetric $\langle u'v'\rangle$ that vanishes on $y/L = 0$. The hybrid simulation closely recovers the normal stresses $\langle u'u'\rangle$ and $\langle v'v'\rangle$, matching both the peak locations and the lobe topology. The shear stress shows the biggest difference; the positive lobe is substantially weaker than in the reference, so the hybrid only partially preserves the antisymmetry over this simulation window.
+
+The rightmost column of \autoref{fig: base_rst} shows the discrepancies, especially in the wake $x/L \gtrsim 1$, with peak errors of around $0.08$, $0.2$ and $0.08$ ($\sim\! 11, \; 16 \; \& \; 26 \%$ of the reference peaks); $\langle u'v'\rangle$ carries the largest relative error, as was also visible due to the fact that the positive half of its "butterfly" shape missing compared to the nicely symmetric contour plot of the reference shear component. Crucially, this error sits in the same near-body wake region as the mean-flow discrepancy (\autoref{fig: base_diff_mean_u}) and the rollout $4$--$6$ lift decay (\autoref{subsect: 4_forces}), which means that forces, mean flow, and Reynolds stresses indicate the same error for this hybrid case. As these figures have shown, however, the bias of $\mathcal{P}$ to produce lower amplitude fluctuations is an error in magnitude rather than a corruption of the dynamics, 
+
+\begin{table}[ht]
+  \centering
+  \caption{Quantitative comparison between the hybrid and reference fields:
+    mean absolute error (MAE) and spatial Pearson correlation coefficient,
+    computed over the wake region.}
+  \label{tab: base_field_metrics}
+  \begin{tabular}{l cc ccc}
+    \toprule
+    & \multicolumn{2}{c}{Mean flow} & \multicolumn{3}{c}{Reynolds stresses} \\
+    \cmidrule(lr){2-3}\cmidrule(lr){4-6}
+    & $\langle u\rangle$ & $\langle v\rangle$
+    & $\langle u'u'\rangle$ & $\langle v'v'\rangle$ & $\langle u'v'\rangle$ \\
+    \midrule
+    MAE         & 0.009 & 0.005 & 0.006 & 0.014 & 0.004  \\
+    Corr.\ coeff.\ & 0.9932 & 0.9928 & 0.9789 & 0.9791 & 0.9275 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\lipsum[]
 
 \subsection{Physical Consistency of the Hybrid State}
 \label{subsect: 4_physical_consistency}
 % fft analysis here
-% Divergence residual ||∇·û|| over time, max & mean.
-% Snapshot vorticity comparison hybrid vs reference at 3 instants.
-% Important framing: the hybrid trajectory is one realisation of a chaotic
-% system, so pointwise matching is the wrong test; statistical matching is
-% the right one. State this explicitly.
+do after hpc run finishes
 
-\subsection{Training Dynamics}
-\label{subsect: 4_training_dynamics}
+\subsection{Autoencoder performance}
+The autoencoder
 
-% -----------------------------------------------------------------------
-\section{Autoencoder Reconstruction Quality}
-\label{sect: 4_ae_results}
+\subsection{NODE performance}
 
 
-\subsection{Reconstruction Error on Held-Out Snapshots}
-\label{subsect: 4_ae_recon}
-% Figure: side-by-side ground truth / reconstruction / |error| for a handful
-% of test snapshots. From visualize_reconstructions().
-% Table: MAE, correlation coefficient per channel, divergence residual, curl
-% residual on the test split.
+\section{Effect of Pipeline Parameters}
 
-\subsection{Effect of Latent Dimension}
-\label{subsect: 4_ae_latent}
-% From your hpc_tune sweep. Plot recon_mae and divergence vs N_z for
-% N_z ∈ {8, 16, 32, 64} or whatever you swept. Justify N_z = 16 as the
-% knee of the curve.
+\subsection{Autoencoder}
+% \todo{Put autoencoder reconstruction behaviour in appendix, focus on actual changes in autoencoder architecture on the accuracy of the hybrid simulations}
 
-\subsection{Effect of Batch Size}
-\label{subsect: 4_ae_BS}
+\subsubsection{Latent dimension}
+\subsubsection{Batch size}
+\subsection{Physics weights}
 
+\subsection{NODE}
+\subsubsection{Group size}
+\subsubsection{Continuity penalty}
 
-\subsection{Effect of Physics-Informed Loss Weights}
-\label{subsect: 4_ae_phys_loss}
-% λ_div, λ_curl sweep. Show that without them the reconstruction is still
-% sharp but divergence-free is violated; with them, recon MAE rises slightly
-% but div/curl drop by an order of magnitude. This is the empirical
-% justification for the loss design in §3.3.2.
+\subsection{Integration monitor}
 
-\subsection{Training Dynamics}
-\label{subsect: 4_ae_training}
-% From plot_losses(): train / val / test loss curves, correlation curves.
-% One figure, brief discussion of convergence behaviour and any overfitting.
-
-% -----------------------------------------------------------------------
-\section{Neural ODE Latent Rollouts}
-\label{sect: 4_node_results}
-
-\subsection{Rollout Accuracy Against Encoded Ground Truth}
-\label{subsect: 4_node_rollout}
-% Per-dimension plot z_i(t) for ground truth vs NODE rollout, train region
-% and test region clearly marked. The "extrapolation" plot. State the
-% horizon at which rollout error crosses a threshold.
-
-\subsection{Effect of Multiple-Shooting Parameters}
-\label{subsect: 4_node_ms}
-% Sweep over group_size ∈ {10, 15, 20, 30} and continuity_term ∈
-% {100, 200, 400} (your sweep_node_retrain.jl grid). Plot rollout error
-% (and possibly training stability) vs each. Justify group_size = 20,
-% continuity_term = 200 from the data.
-
-
-% -----------------------------------------------------------------------
-\section{OOD Detector Calibration and Behaviour}
-\label{sect: 4_ood_results}
-
-\subsection{Threshold Calibration on Training Latents}
-\label{subsect: 4_ood_threshold}
-% Histogram of KNN distances on training latents, with the 99th-percentile
-% threshold τ marked.
-
-
-\subsection{Sensitivity to k and threshold}
-\label{subsect: 4_ood_sensitivity}
-% Brief: how the trigger rate during the hybrid loop changes with k and τ.
-
-% -----------------------------------------------------------------------
 \section{Generalisation}
-\label{sect: 4_transfer}
 
-% This is where TL1 / TL2 live. From the existing checkpoints
-% TL1_E500_..., TL2_E300_..., and sweep_node_retrain.jl.
+\subsection{Re 250}
 
-\subsection{Transfer to a Finer Simulation Mesh}
-\label{subsect: 4_tl_re}
-% Hybrid run at Re ≠ 2500 using TL1-fine-tuned AE. Show what fraction of
-% training cost is recovered relative to training from scratch.
-
-\subsection{Transfer to a Lower Reynolds Number}
+\subsection{Finer Simulation grid}
 
 
-% -----------------------------------------------------------------------
-\section{Summary of Findings}
-\label{sect: 4_summary}
 
-% Short. One paragraph each on (i) end-to-end acceleration achieved,
-% (ii) which design choices the ablations validated, (iii) which honest
-% limitations are visible in the results (most likely: chaotic divergence
-% in pointwise comparisons, fixed geometry, BC overhead, single Re without
-% TL). The committee will look for this last paragraph.
+
+% % -----------------------------------------------------------------------
+% \section{Autoencoder Reconstruction Quality}
+% \label{sect: 4_ae_results}
+% \todo{Put autoencoder reconstruction behaviour in appendix, focus on actuall changes in autoencoder architecture on the accuracy of the hybrid simulations}
+
+
+% \subsection{Reconstruction Error on Held-Out Snapshots}
+% \label{subsect: 4_ae_recon}
+% % Figure: side-by-side ground truth / reconstruction / |error| for a handful
+% % of test snapshots. From visualize_reconstructions().
+% % Table: MAE, correlation coefficient per channel, divergence residual, curl
+% % residual on the test split.
+
+% \subsection{Effect of Latent Dimension}
+% \label{subsect: 4_ae_latent}
+% % From your hpc_tune sweep. Plot recon_mae and divergence vs N_z for
+% % N_z ∈ {8, 16, 32, 64} or whatever you swept. Justify N_z = 16 as the
+% % knee of the curve.
+
+% \subsection{Effect of Batch Size}
+% \label{subsect: 4_ae_BS}
+
+
+% \subsection{Effect of Physics-Informed Loss Weights}
+% \label{subsect: 4_ae_phys_loss}
+% % λ_div, λ_curl sweep. Show that without them the reconstruction is still
+% % sharp but divergence-free is violated; with them, recon MAE rises slightly
+% % but div/curl drop by an order of magnitude. This is the empirical
+% % justification for the loss design in §3.3.2.
+
+% \subsection{Training Dynamics}
+% \label{subsect: 4_ae_training}
+% % From plot_losses(): train / val / test loss curves, correlation curves.
+% % One figure, brief discussion of convergence behaviour and any overfitting.
+
+% % -----------------------------------------------------------------------
+% \section{Neural ODE Latent Rollouts}
+% \label{sect: 4_node_results}
+
+% \subsection{Rollout Accuracy Against Encoded Ground Truth}
+% \label{subsect: 4_node_rollout}
+% % Per-dimension plot z_i(t) for ground truth vs NODE rollout, train region
+% % and test region clearly marked. The "extrapolation" plot. State the
+% % horizon at which rollout error crosses a threshold.
+
+% \subsection{Effect of Multiple-Shooting Parameters}
+% \label{subsect: 4_node_ms}
+% % Sweep over group_size ∈ {10, 15, 20, 30} and continuity_term ∈
+% % {100, 200, 400} (your sweep_node_retrain.jl grid). Plot rollout error
+% % (and possibly training stability) vs each. Justify group_size = 20,
+% % continuity_term = 200 from the data.
+
+
+% % -----------------------------------------------------------------------
+% \section{OOD Detector Calibration and Behaviour}
+% \label{sect: 4_ood_results}
+
+% \subsection{Threshold Calibration on Training Latents}
+% \label{subsect: 4_ood_threshold}
+% % Histogram of KNN distances on training latents, with the 99th-percentile
+% % threshold τ marked.
+
+
+% \subsection{Sensitivity to k and threshold}
+% \label{subsect: 4_ood_sensitivity}
+% % Brief: how the trigger rate during the hybrid loop changes with k and τ.
+
+% % -----------------------------------------------------------------------
+% \section{Generalisation}
+% \label{sect: 4_transfer}
+
+% % This is where TL1 / TL2 live. From the existing checkpoints
+% % TL1_E500_..., TL2_E300_..., and sweep_node_retrain.jl.
+
+% \subsection{Transfer to a Finer Simulation Mesh}
+% \label{subsect: 4_tl_re}
+% % Hybrid run at Re ≠ 2500 using TL1-fine-tuned AE. Show what fraction of
+% % training cost is recovered relative to training from scratch.
+
+% \subsection{Transfer to a Lower Reynolds Number}
+
+
+% % -----------------------------------------------------------------------
+% \section{Summary of Findings}
+% \label{sect: 4_summary}
+
+% % Short. One paragraph each on (i) end-to-end acceleration achieved,
+% % (ii) which design choices the ablations validated, (iii) which honest
+% % limitations are visible in the results (most likely: chaotic divergence
+% % in pointwise comparisons, fixed geometry, BC overhead, single Re without
+% % TL). The committee will look for this last paragraph.
