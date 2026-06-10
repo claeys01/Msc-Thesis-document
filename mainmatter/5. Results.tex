@@ -26,6 +26,15 @@ Because the cylinder wake at $Re = 2500$ is chaotic, the hybrid and reference tr
 quantities, which are the physically reproducible observables of the flow:
 
 \begin{itemize}
+  \item \textbf{Computational cost.} The end-to-end speed-up
+        \begin{align}
+          S_\text{loop} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, cfd} + T_\text{wall}^\text{h, rollout}} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot}},
+          \qquad
+          S_\text{eff}
+          = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
+        \end{align}
+    Where $S_\text{loop}$ is the speedup achieved by the hybrid loop (algorithm \ref{alg: run_hybrid}), and $S_\text{eff}$ is the speedup achieved by the complete integrated workflow as proposed in Figure~\ref{fig: integrated_workflow}. 
+
   \item \textbf{Integrated forces.} The time-mean drag and the root-mean-square
         lift are compared as, visible in \autoref{fig: 256_forces}
         \begin{align}
@@ -40,27 +49,19 @@ quantities, which are the physically reproducible observables of the flow:
           e^\text{rel}_{C_L} &= \frac{\bigl| C_L^\text{rms} - C_{L,\text{ref}}^\text{rms} \bigr|}{C_{L,\text{ref}}^\text{rms}},
         \end{align}
         
-  % \item \textbf{Mean flow and Reynolds stresses.} The relative spatial $L_1$
-  %       error over the fluid domain $\Omega$, \todo{as done in \cite{Lu2025}}
-  %       \begin{align}
-  %         \varepsilon_q
-  %         = \frac{\lVert q - q_\text{ref} \rVert_{L_2(\Omega)}}
-  %                {\lVert q_\text{ref} \rVert_{L_2(\Omega)}},
-  %         \qquad
-  %         q \in \bigl\{ \langle u\rangle,\, \langle v\rangle,\,
-  %                       \langle u'u'\rangle,\, \langle v'v'\rangle,\,
-  %                       \langle u'v'\rangle \bigr\}.
-  %       \end{align}
-
-
-  \item \textbf{Computational cost.} The end-to-end speed-up
+  \item \textbf{Mean flow and Reynolds stresses.} The $L_1$
+        error over the fluid domain for the $\Omega$, \todo{as done in \cite{Lu2025}}
         \begin{align}
-          S_\text{loop} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, cfd} + T_\text{wall}^\text{h, rollout}} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot}},
+          \varepsilon_q
+          = \lVert q - q_\text{ref} \rVert_{L_2(\Omega)}
           \qquad
-          S_\text{eff}
-          = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
+          q \in \bigl\{ \langle u\rangle,\, \langle v\rangle,\,
+                        \langle u'u'\rangle,\, \langle v'v'\rangle,\,
+                        \langle u'v'\rangle \bigr\}.
         \end{align}
-    Where $S_\text{loop}$ is the speedup achieved by the hybrid loop (algorithm \ref{alg: run_hybrid}), and $S_\text{eff}$ is the speedup achieved by the complete integrated workflow as proposed in Figure~\ref{fig: integrated_workflow}. 
+
+
+
 
 \end{itemize}
 
@@ -79,7 +80,7 @@ All of the metrics above are expressed over the full simulation time window (unl
 
 % -----------------------------------------------------------------------
 \section{Hybrid Acceleration of the Cylinder Flow}
-\label{sect: 4_hybrid}
+\label{sect: 4_base_hybrid}
 
 \subsection{Baseline Configuration}
 \label{subsect: 4_baseline}
@@ -558,7 +559,6 @@ The rightmost column of \autoref{fig: base_rst} shows the discrepancies, especia
   \end{tabular}
 \end{table}
 
-\lipsum[]
 
 \subsection{Physical Consistency of the Hybrid State}
 \label{subsect: 4_physical_consistency}
@@ -566,19 +566,116 @@ The rightmost column of \autoref{fig: base_rst} shows the discrepancies, especia
 do after hpc run finishes
 
 \subsection{Autoencoder performance}
-The autoencoder
+
 
 \subsection{NODE performance}
 
 
 \section{Effect of Pipeline Parameters}
 
+Having discussed the functioning of the hybrid simulation and its physical effects in detail in Section~\ref{sect: 4_base_hybrid}, this section aims to highlight the influence of specific parameters of each component of $\mathcal{P}$  $(\varphi_\theta,\,\psi_\theta,\,f_\phi,\,\mathcal{K})$. Where certain parameters are isolated to quantify their effects, with two aims: to justify the baseline values of Table~\ref{tab: 4_hybrid_config} rather than presenting them arbitrarily, and to expose the trade-offs that lie within the developed framework. The study proceeds component by component, following the order of Chapter~\ref{chap: Methodology}. For the autoencoder, the latent dimension $N_z$, the training batch size, and the divergence and curl weights $(\lambda_\text{div},\,\lambda_\text{curl})$ of the physics-informed loss~\eqref{eq: AE_loss} are varied to study their influence on the hybrid simulation across its respective time window. for the Neural ODE, the multiple-shooting group size $n_s$ and the continuity weight $\lambda_c$ are varied, being the two parameters that most directly govern rollout stability and training cost. For the integration monitor, the neighbour count $k$ and the threshold $\tau$ are varied, since these parameters directly influence the rollout length. 
+
+Each parameter is varied individually, following one-factor-at-a-time (OFAT) analysis, bout the baseline of Table~\ref{tab: 4_hybrid_config}; this means that the interactions between the parameters are not explored. A comprehensive study of the interactions between these parameters would require a large number of pipeline training runs, which would grow exponentially with the parameter count and exceed this work's computational budget. The parameter variations below, therefore, report the effect of each parameter, with the baseline serving as a solid comparison point. The following subsections will present and compare various hybrid simulations based on the comparison metrics presented in \ref{subsect: 4_metrics}, the exact values that were used to construct these metrics (such as $T^\text{h, tot}_\text{wall}$ and $T^\text{h, training}_\text{wall}$) are presented in \autoref{app: par_var}.
+\todo{put whole table with metrics in appendix}
+
+
 \subsection{Autoencoder}
-% \todo{Put autoencoder reconstruction behaviour in appendix, focus on actual changes in autoencoder architecture on the accuracy of the hybrid simulations}
+The autoencoder uses $\varphi_\theta$ to compress instantaneous velocity snapshots $\mathbf{u}$ down to the compressed representation $\mathbf{z}$. Although it is not a time-dependent operation, it does have a significant influence on the dynamics of $\boldsymbol{\mathcal{T}}_z$, since it controls how the full-scale physics are represented on the lower-dimensional latent space. This means that the $\varphi_\theta$ dictates the dynamics that $f_\phi$ has to learn, which get rolled out by the ODE solver past the training horizon as the rolled out trajectory $\tilde{\boldsymbol{\mathcal{T}}}_z$. Subsequently, these rolled-out dynamics are reconstructed in physical space by $\psi_\theta$, which in turn influences the downstream flow behaviour, which is fed back into $\mathcal{P}$ at later retrain or hybrid stages. 
+
+To assess the influence of the autoencoder, three parameters are varied. The latent dimension $N_z$ determines the width of the bottleneck and governs how much of the flow physics is preserved by the compression operation. \textcite{Nair2024} has shown that for autoencoder--neural ODE surrogates of advection-dominated flows, the dimensions of the latent space have little influence on the solver behaviour of the neural ODE. The variation in latent dimensions, therefore, primarily serves as a study of the accuracy of latent and full-scale dynamics, not of rollout stability. 
+
 
 \subsubsection{Latent dimension}
-\subsubsection{Batch size}
+The latent dimension $N_z$ determines the width of the bottleneck and governs how much of the flow physics is preserved by the compression operation. \textcite{Nair2024} has shown that for autoencoder--neural ODE surrogates of advection-dominated flows, the recovered latent dynamics are governed primarily by the training-trajectory length rather than by the latent dimension itself. The dimensions of the latent space have little influence on the neural ODE solver's behaviour. The variation in latent dimensions, therefore, primarily serves as a study of the accuracy of latent and full-scale dynamics. 
+
+In the present hybrid setting, $N_z$ instead trades inference speed against the fidelity of the reconstructed flow statistics, as the sweep
+over $N_z \in \{8, 16, 32\}$ (with $N_z = 16$ the baseline) in \autoref{fig: latent_speedup} shows. 
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+    \begin{groupplot}[
+        group style={group size=2 by 1, horizontal sep=1.7cm},
+        width=6.2cm, height=6.0cm,
+        symbolic x coords={8,16,32},
+        xtick=data,
+        xlabel={$N_z$},
+        enlarge x limits=0.30,
+        nodes near coords,
+        every node near coord/.append style={anchor=south, font=\footnotesize},
+        tick label style={font=\small},
+        label style={font=\small},
+        title style={font=\small\bfseries},
+      ]
+      \nextgroupplot[ybar, bar width=16pt, ylabel={$S_\mathrm{loop}$}, ymin=0, ymax=2.9,
+                     title={Inference-loop speedup},
+                     nodes near coords={\pgfmathprintnumber[fixed,precision=2]{\pgfplotspointmeta}}]
+        \addplot[draw=black, fill=blue!55] coordinates {(8,2.51) (16,1.48) (32,1.64)};
+        \draw[dashed,gray] (axis cs:8,1) -- (axis cs:32,1)
+          node[pos=0.5,above,font=\scriptsize\itshape,gray,fill=white,inner sep=1pt]{break-even};
+
+      \nextgroupplot[ybar, bar width=16pt, ylabel={$S_\mathrm{eff}$}, ymin=0, ymax=0.13,
+                     ytick={0,0.025,0.05,0.075,0.1,0.125},
+                     scaled y ticks=false,
+                     yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=3},
+                     title={Effective speedup (incl.\ training)},
+                     nodes near coords={\pgfmathprintnumber[fixed,precision=3]{\pgfplotspointmeta}}]
+        \addplot[draw=black, fill=orange!75] coordinates {(8,0.113) (16,0.058) (32,0.069)};
+    \end{groupplot}
+  \end{tikzpicture}
+  \caption{Effect of the autoencoder latent dimension on hybrid solver
+  acceleration for the 2D cylinder case ($Re \leq 2500$). Left: inference-loop
+  speedup $S_\mathrm{loop}$; the dashed line marks break-even ($S=1$). Right:
+  effective speedup $S_\mathrm{eff}$, including one-time training cost.}
+  \label{fig: latent_speedup}
+\end{figure}
+\todo{replace bar chart}
+
+
+
+The smallest bottleneck proves to be the best of the three models, as with $N_z=8$ the hybrid loop achieves $S_\text{loop} = 2.51$, against $1.48$ and $1.64$ for $N_z = 16$ and $32$. The acceleration performance can largely be attributed to the longer average rollout length of the smallest bottleneck, with average rollout length of $964$ CFD steps per accepted prediction, against $408$ and $421$ for $N_z = 16$ and $32$. The lower dimensional latent space presents simpler dynamics for the compact MLP $f_\phi$ to learn, which allows it to keep $\tilde{\boldsymbol{\mathcal{T}}}_z$ in distribution for longer before the KNN monitor flags. However, because of the lower amount of values that are able to contain information about the turbulent flow, it is not able to produce the same result when assessed over mean flow and RST accuracy, as displayed in \autoref{tab: latent_field_mae}.
+
+
+\begin{table}[htbp]
+\centering
+\sisetup{table-number-alignment = center}
+\begin{tabular}{
+  l
+  l
+  S[table-format=1.4]
+  S[table-format=1.4]
+  S[table-format=1.4]
+}
+\toprule
+ & & {$N_z = 8$} & {$N_z = 16$ (base)} & {$N_z = 32$} \\
+\cmidrule(lr){3-3} \cmidrule(lr){4-4} \cmidrule(lr){5-5}
+Field & Quantity & {MAE} & {MAE} & {MAE} \\
+\midrule
+\multirow{2}{*}{Mean flow}
+  & $\langle u \rangle$    & 0.0109 & 0.0094 & 0.0102 \\
+  & $\langle v \rangle$    & 0.0078 & 0.0053 & 0.0074 \\
+\addlinespace
+\multirow{3}{*}{Reynolds stresses}
+  & $\langle u'u' \rangle$ & 0.0100 & 0.0064 & 0.0049 \\
+  & $\langle v'v' \rangle$ & 0.0274 & 0.0138 & 0.0103 \\
+  & $\langle u'v' \rangle$ & 0.0065 & 0.0041 & 0.0034 \\
+\bottomrule
+\end{tabular}
+\caption{Mean absolute error of the time-averaged velocity components and the
+Reynolds-stress tensor for the latent-dimension sweep, computed over the full1
+fluid domain against each run's own reference simulation $\mathcal{S}_\text{ref}$.
+Velocities are scaled by $U$, so the mean-flow MAE is in units of $U$ and the
+Reynolds-stress MAE in units of $U^2$.}
+\label{tab: latent_field_mae}
+\end{table}
+
+This shows that the 
+
+\subsubsection{Training Epochs}
+The number of training epochs are varied, since the autoencoders' initial training consumes most of the wall time, as \autoref{tab: wall_timing_hybrid} shows. But it also controls how strict the instantaneous dynamics are learned, a
+
 \subsection{Physics weights}
+% Finally, the divergence and curl weights $(\lambda_\text{div},\,\lambda_\text{curl})$ govern how strictly the reconstructed field respects the incompressibility and vorticity structure of the flow; because $\hat{\mathbf{u}}$ is re-injected into the WaterLily solver, a reconstruction that is sharp but physically inadmissible can destabilise the downstream simulation, so these weights trade reconstruction fidelity against physical consistency rather than against cost.
 
 \subsection{NODE}
 \subsubsection{Group size}
