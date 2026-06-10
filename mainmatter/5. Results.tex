@@ -22,63 +22,70 @@ While both simulations are advancing in time, relevant mean flow components (tim
 
 \subsection{Comparison metrics} 
 \label{subsect: 4_metrics}
-Because the cylinder wake at $Re = 2500$ is chaotic, the hybrid and reference trajectories can quickly separate in time when given a slight perturbation in the velocity field. Because of this, comparing $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ using a pointwise field error is not a meaningful measure of accuracy, and is therefore not used. The simulations are instead compared through statistical and integral
-quantities, which are the physically reproducible observables of the flow:
+Because the cylinder wake at $Re = 2500$ is chaotic, the hybrid and reference trajectories can quickly separate in time when given a slight perturbation in the velocity field. Because of this, comparing $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ using a pointwise field error is not a meaningful measure of accuracy, and is therefore not used. The simulations are instead compared through statistical and integral quantities, which are the physically reproducible observables of the flow.
 
-\begin{itemize}
-  \item \textbf{Computational cost.} The end-to-end speed-up
-        \begin{align}
-          S_\text{loop} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, cfd} + T_\text{wall}^\text{h, rollout}} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot}},
-          \qquad
-          S_\text{eff}
-          = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
-        \end{align}
-    Where $S_\text{loop}$ is the speedup achieved by the hybrid loop (algorithm \ref{alg: run_hybrid}), and $S_\text{eff}$ is the speedup achieved by the complete integrated workflow as proposed in Figure~\ref{fig: integrated_workflow}. 
+\subsubsection{Computational cost}
+The primary motivation of the hybrid scheme is acceleration, so the first metric to compare is wall time. Both simulations integrate the identical convective-time window $0 \mapsto t^*_\text{end}$ on the same hardware, so the ratios below isolate the algorithmic gain rather than a platform difference. Two speed-up metrics are reported:
 
-  \item \textbf{Integrated forces.} The time-mean drag and the root-mean-square
-        lift are compared as, visible in \autoref{fig: 256_forces}
-        \begin{align}
-          e_{C_D} &= \bigl| \langle C_D \rangle - \langle C_D \rangle_\text{ref} \bigr|,
-          &
-          e_{C_L} &= \bigl| C_L^\text{rms} - C_{L,\text{ref}}^\text{rms} \bigr|,
-        \end{align}
-        together with their relative counterparts 
-        \begin{align}
-          e^\text{rel}_{C_D} &= \frac{\bigl| \langle C_D \rangle - \langle C_D \rangle_\text{ref} \bigr|}{C_{D, \text{ref}}},
-          &
-          e^\text{rel}_{C_L} &= \frac{\bigl| C_L^\text{rms} - C_{L,\text{ref}}^\text{rms} \bigr|}{C_{L,\text{ref}}^\text{rms}},
-        \end{align}
-        
-  \item \textbf{Mean flow and Reynolds stresses.} The $L_1$
-        error over the fluid domain for the $\Omega$, \todo{as done in \cite{Lu2025}}
-        \begin{align}
-          \varepsilon_q
-          = \lVert q - q_\text{ref} \rVert_{L_2(\Omega)}
-          \qquad
-          q \in \bigl\{ \langle u\rangle,\, \langle v\rangle,\,
-                        \langle u'u'\rangle,\, \langle v'v'\rangle,\,
-                        \langle u'v'\rangle \bigr\}.
-        \end{align}
+\begin{align}
+  S_\text{loop} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, cfd} + T_\text{wall}^\text{h, rollout}} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot}},
+  \qquad
+  S_\text{eff}
+  = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
+\end{align}
+Where $S_\text{loop}$ is the speedup achieved by the hybrid loop (algorithm \ref{alg: run_hybrid}); the denominator splits the loop costs into conventional CFD steps that stabilise the field between rollouts, $T_\text{wall}^\text{h, cfd}$, and the latent rollouts of $\mathcal{P}$, $T_\text{wall}^\text{h, rollout}$. It reflects the cost of hybrid ML-CFD timestepping after the ML models have been trained. $S_\text{eff}$ additionally charges the training costs $T_\text{wall}^\text{h, training}$ of the networks in $\mathcal{P}$, and is able to quantify the speed-up of the complete integrated workflow of Figure~\ref{fig: integrated_workflow}. 
 
+\subsubsection{Integrated forces}
 
+Pressure force coefficients are used to compare performance in an engineering context. It allows the verification of the hybrid loop using the integrated loading on the cylinder, independent of where in the wake the two solutions agree. The
+time-mean drag $\langle C_D \rangle$ and the root-mean-square lift $C_L^\text{rms}$ are compared against the reference, as shown in
+\autoref{fig: 256_forces}, through their absolute errors
 
+\begin{align}
+  e_{C_D} &= \bigl| \langle C_D \rangle - \langle C_D \rangle_\text{ref} \bigr|,
+  &
+  e_{C_L} &= \bigl| C_L^\text{rms} - C_{L,\text{ref}}^\text{rms} \bigr|,
+\end{align}
+together with their relative counterparts 
+\begin{align}
+  e^\text{rel}_{C_D} &= \frac{\bigl| \langle C_D \rangle - \langle C_D \rangle_\text{ref} \bigr|}{C_{D, \text{ref}}},
+  &
+  e^\text{rel}_{C_L} &= \frac{\bigl| C_L^\text{rms} - C_{L,\text{ref}}^\text{rms} \bigr|}{C_{L,\text{ref}}^\text{rms}},
+\end{align}
 
-\end{itemize}
+The mean drag coefficient allows the assessment of the physically meaningful streamwise loading, whereas the mean lift coefficient vanishes due to symmetry, so the fluctuation amplitude $C_L^\text{rms}$ is compared. The comparison of the relative errors allow comparison between different hybrid simulations. These integral force metrics confirm loading but tell nothing about the errors in the wake of the simulation, which motivates the comparison metrics of the field quantities below. 
+
+\subsubsection{Mean flow and Reynolds stresses}
+ Each time-averaged field is compared against its reference cell-by-cell over the fluid domain $\Omega$ through two complementary metrics, namely the mean absolute error (MAE):
+ 
+\begin{align}
+\varepsilon_q
+  = \frac{1}{N_\Omega}\sum_{\mathbf{x}\in\Omega}
+    \bigl\lvert q(\mathbf{x}) - q_\text{ref}(\mathbf{x}) \bigr\rvert,
+\qquad
+q \in \bigl\{ \langle u\rangle,\, \langle v\rangle,\,
+              \langle u'u'\rangle,\, \langle v'v'\rangle,\,
+              \langle u'v'\rangle \bigr\},
+\end{align}
+      
+with $N_\Omega$ the number of fluid cells, which quantifies the pointwise error in magnitude between $\mathcal{S}$ and $\mathcal{S}_\text{ref}$. The spatial Pearson correlation coefficient measures whether the two fields share the same spatial structure independent of amplitude:
+\begin{align}
+\rho_q
+  = \frac{\sum_{\mathbf{x}\in\Omega}
+           \bigl(q - \bar{q}\bigr)
+           \bigl(q_\text{ref} - \bar{q}_\text{ref}\bigr)}
+         {\sqrt{\sum_{\mathbf{x}\in\Omega}\bigl(q - \bar{q}\bigr)^2}\;
+          \sqrt{\sum_{\mathbf{x}\in\Omega}
+                \bigl(q_\text{ref} - \bar{q}_\text{ref}\bigr)^2}},
+\qquad
+\bar{q} = \frac{1}{N_\Omega}\sum_{\mathbf{x}\in\Omega} q(\mathbf{x}),
+\end{align}
+     
+The two are complementary: $\varepsilon_q$ captures the amplitude bias of $\mathcal{P}$ directly, whereas $\rho_q$ stays near unity as long as the wake topology is preserved, even when the fluctuation magnitudes are damped.
+
 
 All of the metrics above are expressed over the full simulation time window (unless mentioned otherwise), being $0 \mapsto t^*_\text{end}$, which includes all CFD sections in the warmup, hybrid, training and retraining phases of the acceleration workflow. 
-\todo{finish later}
 
-
-% Short. Lifts the relevant subset of §3.1/§3.8 into a single place the reader
-% can refer back to without flipping chapters:
-%   - Train / val / test temporal split (figure or sentence).
-%   - Hardware, precision, seed.
-%   - Hyperparameters used for the "baseline" hybrid run: latent_dim = 16,
-%     group_size = 20, continuity_term = 200, λ_div, λ_curl, n_switch = 150,
-%     Δt* = 0.35, max_retrain_flags = 3. Everything that follows is this run
-%     unless stated.
-
-% -----------------------------------------------------------------------
 \section{Hybrid Acceleration of the Cylinder Flow}
 \label{sect: 4_base_hybrid}
 
@@ -553,13 +560,13 @@ The rightmost column of \autoref{fig: base_rst} shows the discrepancies, especia
     & $\langle u\rangle$ & $\langle v\rangle$
     & $\langle u'u'\rangle$ & $\langle v'v'\rangle$ & $\langle u'v'\rangle$ \\
     \midrule
-    MAE         & 0.009 & 0.005 & 0.006 & 0.014 & 0.004  \\
-    Corr.\ coeff.\ & 0.9932 & 0.9928 & 0.9789 & 0.9791 & 0.9275 \\
+    $\varepsilon_q$  & 0.009 & 0.005 & 0.006 & 0.014 & 0.004  \\
+    $\rho_q$        & 0.9932 & 0.9928 & 0.9789 & 0.9791 & 0.9275 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-
+\todo{Adress this}
 \subsection{Physical Consistency of the Hybrid State}
 \label{subsect: 4_physical_consistency}
 % fft analysis here
@@ -588,8 +595,7 @@ To assess the influence of the autoencoder, three parameters are varied. The lat
 \subsubsection{Latent dimension}
 The latent dimension $N_z$ determines the width of the bottleneck and governs how much of the flow physics is preserved by the compression operation. \textcite{Nair2024} has shown that for autoencoder--neural ODE surrogates of advection-dominated flows, the recovered latent dynamics are governed primarily by the training-trajectory length rather than by the latent dimension itself. The dimensions of the latent space have little influence on the neural ODE solver's behaviour. The variation in latent dimensions, therefore, primarily serves as a study of the accuracy of latent and full-scale dynamics. 
 
-In the present hybrid setting, $N_z$ instead trades inference speed against the fidelity of the reconstructed flow statistics, as the sweep
-over $N_z \in \{8, 16, 32\}$ (with $N_z = 16$ the baseline) in \autoref{fig: latent_speedup} shows. 
+In the present hybrid setting, $N_z$ instead trades inference speed against the fidelity of the reconstructed flow statistics, as the sweep over $N_z \in \{8, 16, 32\}$ (with $N_z = 16$ the baseline) in \autoref{fig: latent_speedup} shows. 
 
 \begin{figure}[htbp]
   \centering
@@ -601,20 +607,21 @@ over $N_z \in \{8, 16, 32\}$ (with $N_z = 16$ the baseline) in \autoref{fig: lat
         xtick=data,
         xlabel={$N_z$},
         enlarge x limits=0.30,
+        ymajorgrids=true,
+        grid style={gray!30},
         nodes near coords,
         every node near coord/.append style={anchor=south, font=\footnotesize},
         tick label style={font=\small},
         label style={font=\small},
         title style={font=\small\bfseries},
       ]
-      \nextgroupplot[ybar, bar width=16pt, ylabel={$S_\mathrm{loop}$}, ymin=0, ymax=2.9,
+      \nextgroupplot[ybar, bar width=24pt, ylabel={$S_\mathrm{loop}$}, ymin=0, ymax=2.9,
                      title={Inference-loop speedup},
                      nodes near coords={\pgfmathprintnumber[fixed,precision=2]{\pgfplotspointmeta}}]
         \addplot[draw=black, fill=blue!55] coordinates {(8,2.51) (16,1.48) (32,1.64)};
-        \draw[dashed,gray] (axis cs:8,1) -- (axis cs:32,1)
-          node[pos=0.5,above,font=\scriptsize\itshape,gray,fill=white,inner sep=1pt]{break-even};
-
-      \nextgroupplot[ybar, bar width=16pt, ylabel={$S_\mathrm{eff}$}, ymin=0, ymax=0.13,
+        % \draw[dashed,gray] (axis cs:8,1) -- (axis cs:32,1)
+        %   node[pos=0.5,above,font=\scriptsize\itshape,gray,inner sep=1pt]{break-even};
+      \nextgroupplot[ybar, bar width=24pt, ylabel={$S_\mathrm{eff}$}, ymin=0, ymax=0.13,
                      ytick={0,0.025,0.05,0.075,0.1,0.125},
                      scaled y ticks=false,
                      yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=3},
@@ -623,56 +630,28 @@ over $N_z \in \{8, 16, 32\}$ (with $N_z = 16$ the baseline) in \autoref{fig: lat
         \addplot[draw=black, fill=orange!75] coordinates {(8,0.113) (16,0.058) (32,0.069)};
     \end{groupplot}
   \end{tikzpicture}
-  \caption{Effect of the autoencoder latent dimension on hybrid solver
-  acceleration for the 2D cylinder case ($Re \leq 2500$). Left: inference-loop
-  speedup $S_\mathrm{loop}$; the dashed line marks break-even ($S=1$). Right:
-  effective speedup $S_\mathrm{eff}$, including one-time training cost.}
+  \caption{Effect of the autoencoder latent dimension on hybrid solver acceleration. Left: inference-loop speedup $S_\mathrm{loop}$;  Right: effective speedup $S_\mathrm{eff}$, including training costs.}
   \label{fig: latent_speedup}
 \end{figure}
-\todo{replace bar chart}
 
+The smallest bottleneck proves to be the best of the three models in terms of acceleration performance, as with $N_z=8$ the hybrid loop achieves $S_\text{loop} = 2.51$, against $1.48$ and $1.64$ for $N_z = 16$ and $32$. The acceleration performance can largely be attributed to the longer average rollout length of the smallest bottleneck, with an average of $964$ CFD steps per accepted prediction, compared to $408$ and $421$ for $N_z = 16$ and $32$. The lower-dimensional latent space presents simpler dynamics for the compact MLP $f_\phi$ to learn, which allows it to keep $\tilde{\boldsymbol{\mathcal{T}}}_z$ in distribution for longer before the KNN monitor flags. However, because of the lower amount of values that are able to contain information about the turbulent flow, it is not able to produce the same result when assessed over mean flow and RST accuracy, as displayed in \autoref{fig: latent_field_mae}.
 
+\begin{figure}[htp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/latent_rst_comp.pdf}
+    \caption{Effect of the autoencoder latent dimension $N_z$ on the accuracy of the reconstructed Reynolds-stress field. Left: mean absolute error $\varepsilon$ of the three independent Reynolds-stress components. Right: spatial correlation coefficient $\rho$ of the same components. Both metrics improve monotonically with $N_z$, showing how the shear stress $\langle u'v' \rangle$ is the least well-recovered component at every bottleneck width.}
+    \label{fig: latent_field_mae}
+\end{figure}
 
-The smallest bottleneck proves to be the best of the three models, as with $N_z=8$ the hybrid loop achieves $S_\text{loop} = 2.51$, against $1.48$ and $1.64$ for $N_z = 16$ and $32$. The acceleration performance can largely be attributed to the longer average rollout length of the smallest bottleneck, with average rollout length of $964$ CFD steps per accepted prediction, against $408$ and $421$ for $N_z = 16$ and $32$. The lower dimensional latent space presents simpler dynamics for the compact MLP $f_\phi$ to learn, which allows it to keep $\tilde{\boldsymbol{\mathcal{T}}}_z$ in distribution for longer before the KNN monitor flags. However, because of the lower amount of values that are able to contain information about the turbulent flow, it is not able to produce the same result when assessed over mean flow and RST accuracy, as displayed in \autoref{tab: latent_field_mae}.
+As expected, a smaller latent space translates into less of the turbulent characteristics that are able to be passed down to $\varphi_\theta$, and reconstructed by $\psi_\theta$. \autoref{fig: latent_field_mae} shows that
+this loss is carried almost entirely by the second-order statistics. As the bottleneck widens, both panels improve with $N_z$, the field error $\varepsilon$ falls, and the spatial correlation $\rho$ rises for every Reynolds-stress component. The degradation is most severe for the spanwise normal stress $\langle v'v' \rangle$ of the RST, whose error nearly triples relative to $N_z = 32$ ($\varepsilon = 0.027$ against $0.010$). The correlation coeffients show that the  the shear stress $\langle u'v' \rangle$ is the least well recovered, especially for the smallest bottleneck. 
 
-
-\begin{table}[htbp]
-\centering
-\sisetup{table-number-alignment = center}
-\begin{tabular}{
-  l
-  l
-  S[table-format=1.4]
-  S[table-format=1.4]
-  S[table-format=1.4]
-}
-\toprule
- & & {$N_z = 8$} & {$N_z = 16$ (base)} & {$N_z = 32$} \\
-\cmidrule(lr){3-3} \cmidrule(lr){4-4} \cmidrule(lr){5-5}
-Field & Quantity & {MAE} & {MAE} & {MAE} \\
-\midrule
-\multirow{2}{*}{Mean flow}
-  & $\langle u \rangle$    & 0.0109 & 0.0094 & 0.0102 \\
-  & $\langle v \rangle$    & 0.0078 & 0.0053 & 0.0074 \\
-\addlinespace
-\multirow{3}{*}{Reynolds stresses}
-  & $\langle u'u' \rangle$ & 0.0100 & 0.0064 & 0.0049 \\
-  & $\langle v'v' \rangle$ & 0.0274 & 0.0138 & 0.0103 \\
-  & $\langle u'v' \rangle$ & 0.0065 & 0.0041 & 0.0034 \\
-\bottomrule
-\end{tabular}
-\caption{Mean absolute error of the time-averaged velocity components and the
-Reynolds-stress tensor for the latent-dimension sweep, computed over the full1
-fluid domain against each run's own reference simulation $\mathcal{S}_\text{ref}$.
-Velocities are scaled by $U$, so the mean-flow MAE is in units of $U$ and the
-Reynolds-stress MAE in units of $U^2$.}
-\label{tab: latent_field_mae}
-\end{table}
-
-This shows that the 
+This comparison shows the trade-off that the bottleneck makes between speedup and physical fidelity of the reconstructed turbulence statistics. At $N_z = 8$, the simpler latent dynamics produce by far the longest rollouts and the largest $S_\text{loop}$, but at the expense of the RST fields; the $N_z = 32$ shows that more complex latent dynamics allow for better turbulent reconstructions, but at the expense of a lesser acceleration performance. This means that the appropriate bottleneck size is thus dictated by wether statistical fidelity or acceleartion behaviour is the priority for a given application. 
 
 \subsubsection{Training Epochs}
-The number of training epochs are varied, since the autoencoders' initial training consumes most of the wall time, as \autoref{tab: wall_timing_hybrid} shows. But it also controls how strict the instantaneous dynamics are learned, a
+The number of training epochs are varied, since the autoencoders' initial training consumes most of the wall time, as \autoref{tab: wall_timing_hybrid} shows. But it also controls how strictly the instantaneous dynamics are learned, a
+
+
 
 \subsection{Physics weights}
 % Finally, the divergence and curl weights $(\lambda_\text{div},\,\lambda_\text{curl})$ govern how strictly the reconstructed field respects the incompressibility and vorticity structure of the flow; because $\hat{\mathbf{u}}$ is re-injected into the WaterLily solver, a reconstruction that is sharp but physically inadmissible can destabilise the downstream simulation, so these weights trade reconstruction fidelity against physical consistency rather than against cost.
