@@ -297,7 +297,7 @@ Since $\boldsymbol{\mu_0}$ is unity in the fluid and zero inside the solid, its 
 
 \subsection{Normalization}
 \label{sect: normalization}
-
+\todo{don't forget}
 % Per-channel z-score normalization scheme.
 % Where statistics are computed, how the Normalizer is stored, and how the inverse transform is applied at decode time.
 
@@ -373,8 +373,8 @@ The encoder consists of $n_\text{conv}$ stacked compression blocks, followed by 
   2D-convolution:~\colorbox{\ConvColor}{\phantom{x}},
   Batch normalization:~\colorbox{\BnColor}{\phantom{x}},
   ReLU activation:~\colorbox{\ReluColor}{\phantom{x}},
-  max pooling:~\colorbox{\PoolColor}{\phantom{x}}} \&
-  compressed feature map:~\colorbox{\FeatColor}{\phantom{x}}
+  max pooling:~\colorbox{\PoolColor}{\phantom{x}} \&
+  compressed feature map:~\colorbox{\FeatColor}{\phantom{x}}}
     \label{fig: encoder}
 \end{figure}
 
@@ -643,7 +643,7 @@ Where $\langle \cdot \rangle$ denotes the average over all available training tr
 
 This approach, called single shooting, fails because the optimiser must simultaneously select parameters $\phi$ that fit the predicted trajectory to every snapshot along its full length~\cite{Turan2022}. For oscillatory problems or long rollouts, this is a difficult optimisation problem with many local minima. Additionally, neural networks exhibit a spectral bias during gradient descent training, leading to the fact that low-frequency components of the target function are learned more easily than high-frequency ones \cite{Rahaman2019}. 
 
-\begin{figure}[H]
+\begin{figure}[htp]
     \centering
     \includegraphics[width=\linewidth]{figures/Methodology/trajectories.pdf}
     \caption{Single-shooting training of the neural ODE on a representative latent trajectory at $\mathrm{Re} = 2500$, displaying 4 latent components. Illustrating the failure mode single-shooting suffers from during long rollouts}
@@ -654,7 +654,7 @@ Figure~\ref{fig: singleshoot} shows how the learned latent trajectory gets stuck
 
 To avoid this failure mode of the single shooting, the neural ODE is trained using \emph{multiple shooting}, a method originally developed for boundary-value problems in numerical analysis~\cite{Bock1984} and adapted to neural ODEs by~\textcite{Turan2022}. The central idea is to replace the single, long integration required by single-shooting with several short, independent integrations whose endpoints are constrained to overlap. A specific trajectory $\mathcal{T}_{z, i}$, spanning $[t_{0},\, t_{\text{train}}]$, is partitioned into $N_{s}+1$ shorter intervals by introducing a grid of shooting points $t_{0} = \tau_0 < \tau_1 < \dots < \tau_{N_{s}} = t_\text{train} $, where each shooting group exists of $n_s$ samples of $\mathcal{T}_{z, i}$. At each interval, the neural ODE is integrated as an independent initial-value problem, with its initial condition treated as an additional optimisation variable. Figure \ref{fig: multiple_shoot_example} shows how the trajectory $\tilde{\mathcal{T}}_{z, i}$ is therefore allowed to be discontinuous across interval boundaries during training, and the resulting shooting gaps. 
 
-\begin{figure}[H]
+\begin{figure}[htp]
     \centering
     \input{figures/Methodology/tikz_figures/multiple_shooting}
     \caption{Multiple shooting schematic, showing the shooting gaps that need to be minimised during training, adapted from \textcite{Turan2022}}

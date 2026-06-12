@@ -256,9 +256,8 @@ This value for $S_\text{loop}$ is far below what the per-CTU rollout cost in \au
 
 This per-CTU advantage is also specific to the base-case resolution. The WaterLily solver is memory-bound, so its cost per CTU grows with grid size~\cite{Weymouth2025}, whereas the rollout cost is fixed by the latent dimension $N_z = 16$ and is independent of the grid. The ceiling on $S_\text{loop}$ therefore rises at finer resolutions: the present $256^2$ grid is a comparatively cheap case in which to demonstrate the gain, and the relative advantage of the latent rollout would be larger on a grid where CFD is more expensive.
 
-To assess the actual speedup of the complete acceleration workflow, as described in \ref{sect: acc_workflow}, the wall times of the training procedures of the ML components in $\mathcal{P}$ need to be accounted for. Table~\ref{tab: wall_timing_hybrid} gives the wall time of the full pipeline, including the training of the networks. The initial training dominates: the autoencoder takes $522$ s ($37.76\%$), and the neural ODE $360$ s ($26.04\%$), so building the networks accounts for almost two-thirds of the total time before a single rollout. The three retraining cycles add a further ${\sim}460$ s, while the actual CFD-plus-rollout work contributes less than $1\%$ of the total of $1382.56$~s.
 
-\begin{table}[ht]
+\begin{table}[htp]
     \centering
     \begin{tabular}{llrr}
         \toprule
@@ -298,11 +297,15 @@ To assess the actual speedup of the complete acceleration workflow, as described
     \label{tab: wall_timing_hybrid}
 \end{table}
 \todo{make sure sum matches this and formula below}
+
+To assess the actual speedup of the complete acceleration workflow, as described in \ref{sect: acc_workflow}, the wall times of the training procedures of the ML components in $\mathcal{P}$ need to be accounted for. Table~\ref{tab: wall_timing_hybrid} gives the wall time of the full pipeline, including the training of the networks. The initial training dominates: the autoencoder takes $522$ s ($37.76\%$), and the neural ODE $360$ s ($26.04\%$), so building the networks accounts for almost two-thirds of the total time before a single rollout. The three retraining cycles add a further ${\sim}460$ s, while the actual CFD-plus-rollout work contributes less than $1\%$ of the total of $1382.56$~s.
+
+
 Taking training into account, the effective speedup of the full workflow is
 \begin{align}
     S_\text{eff}
     = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
-    = \frac{86.63}{58.85 + 1320.00}
+    = \frac{86.63}{58.85 + 1323.71}
     \approx 0.06,
 \end{align}
 
@@ -448,15 +451,15 @@ The force coefficients of Section~\ref{subsect: 4_forces} certify that the hybri
     \caption{}
     \label{fig: base_diff_mean_v}
   \end{subfigure}
-\caption{Mean velocity components: $\langle u\rangle$ (top),
-$\langle v\rangle$ (bottom). Columns: $\mathcal{S}$ (a,~d), $\mathcal{S}_\text{ref}$ (b,~e),
-absolute difference (c,~f). Lengths scaled by $L$, velocities by $U$.}
+\caption{Mean velocity components: $\langle u\rangle$ (top), $\langle v\rangle$ (bottom). Columns: $\mathcal{S}$ (a,~d), $\mathcal{S}_\text{ref}$ (b,~e), absolute difference (c,~f). Lengths scaled by $L$, velocities by $U$.}
 \label{fig: base_meanflow}
 \end{figure}
 
-The time averaged velocity components are computed by sampling instantaneous flow snapshots of $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ at the exact same $t^*$ using a matching sampling interval. Even if the time dependant properties of $\mathcal{S}$ are different to those of $\mathcal{S}_\text{ref}$, the time averaged flow fields should produce the same statistics. 
+\todo{add colums and row lables}
 
-\autoref{fig: base_hybrid_mean_u} and \autoref{fig: base_ref_mean_u} show that both $\langle u\rangle$ have converged in time, showing smooth contours and gradients around the cylinder walls. Where the only visual difference can be seen in the wake of the cylinder, where the hybrid simulation shows to be less smooth than the reference. \autoref{fig: base_hybrid_mean_v} and \autoref{fig: base_ref_mean_v} also seem to to show similar behaviour, where the contours of the  mean spanwise flow of the reference is a bit less smooth compared to that of the reference simulation, indicating that the hybrid simulation lacks a small amount of averaging data. 
+The time-averaged velocity components are computed by sampling instantaneous flow snapshots of $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ at the exact same $t^*$ using a matching sampling interval. Even if the time-dependent properties of $\mathcal{S}$ are different to those of $\mathcal{S}_\text{ref}$, the time-averaged flow fields should produce the same statistics. 
+
+\autoref{fig: base_hybrid_mean_u} and \autoref{fig: base_ref_mean_u} show that both $\langle u\rangle$ have converged in time, showing smooth contours and gradients around the cylinder walls. The only visual difference can be seen in the wake of the cylinder, where the hybrid simulation is less smooth than the reference. \autoref{fig: base_hybrid_mean_v} and \autoref{fig: base_ref_mean_v} also seem to show similar behaviour, where the contours of the mean spanwise flow of the reference are a bit less smooth compared to that of the reference simulation, indicating that the hybrid simulation lacks a small amount of averaging data. 
 
 The absolute-difference fields (\autoref{fig: base_diff_mean_u} \& \autoref{fig: base_diff_mean_v}) show that the discrepancy between the two simulations is negligible over the body and the upstream region and is confined almost entirely to the wake, $x/L \gtrsim 1$. The error peaks at approximately $0.13\,U$ for $\langle u\rangle$ and $0.08\,U$ for $\langle v\rangle$ mostly in the positive spanwise area just behind the cylinder. This matches what could be seen in \autoref{fig: base_forces}, where the rollouts produced lift forces with a lesser amplitude in the positive region of the cylinder wall. Which is exactly the region where the most difference between the mean flow components exists. 
 
@@ -567,12 +570,66 @@ The rightmost column of \autoref{fig: base_rst} shows the discrepancies, especia
 \end{table}
 
 \todo{Adress this}
-\subsection{Physical Consistency of the Hybrid State}
+
+\subsection{Spectral Fidelity of the Wake}
 \label{subsect: 4_physical_consistency}
-% fft analysis here
-do after hpc run finishes
+
+In addition to the time-averaged statistics examined above, a physically faithful hybrid simulation must also reproduce how the energy of the turbulent fluctuations is distributed across temporal scales. This is assessed by sampling the transverse velocity $v$ at a fixed wake location $(x/L, y/L) = (2, 0.5)$ in both $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ and comparing their one-sided power spectra $\mathrm{PS}(v)$, estimated with Welch's method using five segments of the simulation window. Each segment therefore spans approximately five shedding periods. The resulting spectra are shown in \autoref{fig: base_psd} against the non-dimensional frequency $fD/U$.
+
+\begin{figure}[htp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/base/wake_psd.pdf}
+    \caption{Power spectrum of the transverse wake velocity $\mathrm{PS}(v)$ for the $\mathcal{S}_\text{ref}$ and $\mathcal{S}$ against the non-dimensional frequency $fD/U$. The dotted line marks an $f^{-5/3}$ slope, shown only as a visual reference for the mid-band decay rate.}
+  \label{fig: base_psd}
+  \end{figure}
+
+In the low frequency part of the spectrum, both simulations clearly produce similar frequencies. The primary shedding frequency is nicely present at  at $fD/U \approx 0.2$ in both simulations, as was already visible in the force coefficient plot \ref{fig: base_forces}; the higher harmonics of the shedding frequency, associated with the secondary wake structures discussed in \ref{fig: vortex_shedding}, are also captured by the hybrid simulation. The hybrid and reference curve remain closely aligned in the middle frequency range, until the curves separate near $fD/U \approx 2$--$3$. No genuine Kolmogorov $f^{-5/3}$ inertial subrange is expected in a two-dimensional wake at $Re=2500$, in two dimensions the forward (small-scale) cascade follows the steeper $k^{-3}$ enstrophy scaling rather than $k^{-5/3}$ \cite{Boffetta2011}. 
+
+Beyond the separation frequency near $fD/U \approx 2$--$3$, the reference falls steeply to $\mathcal{O}(10^{-10})$, whereas the hybrid seems to move into a plateau two to four decades above the reference. This indicates that $\mathcal{P}$ introduces a high-frequency error that is not tied to a single frequency but is spread across the frequency range. It becomes visible only beyond the crossover near $fD/U \approx 2$--$3$, where the true spectrum drops below it;
+the crossover therefore marks the point at which the error stops being masked, not where it begins. Because this error is broadband and lies well below the energetic shedding scales, it is consistent with a reconstruction artefact of the decoder $\psi_\theta$ rather than an error in the learned latent dynamics $f_\phi$.
+
 
 \subsection{Autoencoder performance}
+\label{subsect: 4_ae_performance}
+
+The autoencoder is the entry and exit point of every $\tilde{\boldsymbol{\mathcal{T}}}_z$ because every initial state is first compressed by $\varphi_\theta$, and every field returned to $\mathcal{S}$ is reconstructed by $\psi_\theta$. Its round-trip error \ref{eq: AE_loss} therefore sets a lower bound on the maximal accuracy $\mathcal{P}$ can attain, independent of how well the latent dynamics can be predicted. Understanding how the autoencoder performs is therefore crucial for interpreting the baseline results of Section~\ref{subsect: 4_forces}, since any error already present in the reconstruction cannot be attributed to $f_\phi$. 
+
+\subsubsection{Training dynamics}
+
+\begin{figure}[htp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/base/loss_evolution.pdf}
+    \caption{Initial training history of the baseline autoencoder. Left axis ($\mathcal{L}$, logarithmic): the total loss on the train, validation and test splits, together with the divergence ($\nabla\!\cdot\mathbf{u}$) and vorticity ($\omega$) penalty terms evaluated on the test split. Right axis (CC): the reconstruction correlation coefficients $CC_u$ and $CC_v$ on train and test.}
+    \label{fig: initial_training_base}
+\end{figure}
+
+\autoref{fig: initial_training_base} shows the loss history of the initial autoencoder training, using the parameters listed in \autoref{tab: 4_ae_config}, on the warmup trajectory sampled up to $t^*_\text{train}=17.5$. The reconstruction loss on the train and validation splits converge to $\mathcal{L}\approx1.5\times10^{-2}$, while the divergence and vorticity penalties settle near $10^{-5}$ and $10^{-4}$ respectively. The correlation coefficients of both velocity components also quickly approach unity, indicating that flow structure is learned rapidly. The test loss settles at $3.55\times10^{-2}$, which is about twice the validation loss value; this value is determined on the held-out window $t^*\in[17.5,\,20]$. This gap indicates that the initial training window lacked sufficient information about the spatial dynamics of $\mathcal{S}$, suggesting that more data are required for generalisation across the entire simulation window, motivating the need to update the autoencoder weights $\theta$. 
+
+\begin{figure}[htp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/base/combined_loss_evolution.pdf}
+    \caption{Caption}
+    \label{fig: combined_training_base}
+\end{figure}
+
+\autoref{fig: combined_training_base} extends the loss over the 2 retraining stages, where each stage updates the weights for an additional $100$ epochs using a reduced learning rate (\autoref{subsect: retraining}). The first learning rate leaves the losses mostly unchanged, but with additional data, it has learned additional dynamics, reflected in the ability to perform longer rollouts, as discussed in \autoref{subsect: 4_forces}. The second retrain drives the test loss up by nearly an order of magnitude while train and validation hold steady: the accumulated dissipative drift (\autoref{subsect: 4_forces}) has pushed $\mathcal{S}$ into a regime that is under-represented in the training data, which makes it so that the generalisation outside of the training regime drastically worsens. This same disparity in training data, and current state of $\mathcal{S}$, is also reflected in the immediately truncated rollouts $7$ and $9$ (\autoref{tab: base_rollout_summary}).
+
+\subsubsection{Instantaneous reconstruction performance}
+The reconstruction of an instantaneous velocity field is displayed in  \autoref{fig: base_velocity_comp} for the two velocity components. These figures show that $\psi_\theta$ performs well in reconstructing the large scale structures of the flow, aligning with the conclusions from \autoref{subsect: 4_physical_consistency}
+
+\begin{figure}[htp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/base/velocity_comp.png}
+    \caption{Caption}
+    \label{fig: base_velocity_comp}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/base/curl_comp.png}
+    \caption{Caption}
+    \label{fig: base_curl_comp}
+\end{figure}
 
 
 \subsection{NODE performance}
@@ -580,7 +637,7 @@ do after hpc run finishes
 
 \section{Effect of Pipeline Parameters}
 
-Having discussed the functioning of the hybrid simulation and its physical effects in detail in Section~\ref{sect: 4_base_hybrid}, this section aims to highlight the influence of specific parameters of each component of $\mathcal{P}$  $(\varphi_\theta,\,\psi_\theta,\,f_\phi,\,\mathcal{K})$. Where certain parameters are isolated to quantify their effects, with two aims: to justify the baseline values of Table~\ref{tab: 4_hybrid_config} rather than presenting them arbitrarily, and to expose the trade-offs that lie within the developed framework. The study proceeds component by component, following the order of Chapter~\ref{chap: Methodology}. For the autoencoder, the latent dimension $N_z$, the training batch size, and the divergence and curl weights $(\lambda_\text{div},\,\lambda_\text{curl})$ of the physics-informed loss~\eqref{eq: AE_loss} are varied to study their influence on the hybrid simulation across its respective time window. for the Neural ODE, the multiple-shooting group size $n_s$ and the continuity weight $\lambda_c$ are varied, being the two parameters that most directly govern rollout stability and training cost. For the integration monitor, the neighbour count $k$ and the threshold $\tau$ are varied, since these parameters directly influence the rollout length. 
+Having discussed the functioning of the hybrid simulation and its physical effects in detail in Section~\ref{sect: 4_base_hybrid}, this section aims to highlight the influence of specific parameters of each component of $\mathcal{P}$  $(\varphi_\theta,\,\psi_\theta,\,f_\phi,\,\mathcal{K})$. Where certain parameters are isolated to quantify their effects, with two aims: to justify the baseline values of Table~\ref{tab: 4_hybrid_config} rather than presenting them arbitrarily, and to expose the trade-offs that lie within the developed framework. The study proceeds component by component, following the order of Chapter~\ref{chap: Methodology}. For the autoencoder, the latent dimension $N_z$, and the divergence and curl weights $(\lambda_\text{div},\,\lambda_\text{curl})$ of the physics-informed loss~\eqref{eq: AE_loss} are varied to study their influence on the hybrid simulation across its respective time window. For the Neural ODE, the multiple-shooting group size $n_s$ and the continuity weight $\lambda_c$ are varied, being the two parameters that directly govern rollout stability and training cost. For the integration monitor, the neighbour count $k$ and the threshold $\tau$ are varied, since these parameters directly influence the rollout length. 
 
 Each parameter is varied individually, following one-factor-at-a-time (OFAT) analysis, bout the baseline of Table~\ref{tab: 4_hybrid_config}; this means that the interactions between the parameters are not explored. A comprehensive study of the interactions between these parameters would require a large number of pipeline training runs, which would grow exponentially with the parameter count and exceed this work's computational budget. The parameter variations below, therefore, report the effect of each parameter, with the baseline serving as a solid comparison point. The following subsections will present and compare various hybrid simulations based on the comparison metrics presented in \ref{subsect: 4_metrics}, the exact values that were used to construct these metrics (such as $T^\text{h, tot}_\text{wall}$ and $T^\text{h, training}_\text{wall}$) are presented in \autoref{app: par_var}.
 \todo{put whole table with metrics in appendix}
@@ -644,12 +701,59 @@ The smallest bottleneck proves to be the best of the three models in terms of ac
 \end{figure}
 
 As expected, a smaller latent space translates into less of the turbulent characteristics that are able to be passed down to $\varphi_\theta$, and reconstructed by $\psi_\theta$. \autoref{fig: latent_field_mae} shows that
-this loss is carried almost entirely by the second-order statistics. As the bottleneck widens, both panels improve with $N_z$, the field error $\varepsilon$ falls, and the spatial correlation $\rho$ rises for every Reynolds-stress component. The degradation is most severe for the spanwise normal stress $\langle v'v' \rangle$ of the RST, whose error nearly triples relative to $N_z = 32$ ($\varepsilon = 0.027$ against $0.010$). The correlation coeffients show that the  the shear stress $\langle u'v' \rangle$ is the least well recovered, especially for the smallest bottleneck. 
+this loss is carried almost entirely by the second-order statistics. As the bottleneck widens, both panels improve with $N_z$, the field error $\varepsilon$ falls, and the spatial correlation $\rho$ rises for every Reynolds-stress component. The degradation is most severe for the spanwise normal stress $\langle v'v' \rangle$ of the RST, whose error nearly triples relative to $N_z = 32$ ($\varepsilon = 0.027$ against $0.010$). The correlation coefficients show that the shear stress $\langle u'v' \rangle$ is the least well recovered, especially for the smallest bottleneck. 
 
-This comparison shows the trade-off that the bottleneck makes between speedup and physical fidelity of the reconstructed turbulence statistics. At $N_z = 8$, the simpler latent dynamics produce by far the longest rollouts and the largest $S_\text{loop}$, but at the expense of the RST fields; the $N_z = 32$ shows that more complex latent dynamics allow for better turbulent reconstructions, but at the expense of a lesser acceleration performance. This means that the appropriate bottleneck size is thus dictated by wether statistical fidelity or acceleartion behaviour is the priority for a given application. 
+This comparison shows the trade-off the bottleneck imposes between speedup and the physical fidelity of the reconstructed turbulence statistics. At $N_z = 8$, the simpler latent dynamics produce by far the longest rollouts and the largest $S_\text{loop}$, but at the expense of the RST fields; the $N_z = 32$ shows that more complex latent dynamics allow for better turbulent reconstructions, but at the expense of a lesser acceleration performance. This means that the appropriate bottleneck size is thus dictated by whether statistical fidelity or acceleration behaviour is the priority for a given application. 
 
 \subsubsection{Training Epochs}
-The number of training epochs are varied, since the autoencoders' initial training consumes most of the wall time, as \autoref{tab: wall_timing_hybrid} shows. But it also controls how strictly the instantaneous dynamics are learned, a
+The number of training epochs are varied around the baseline of $500$, since the autoencoders' initial training consumes most of the wall time, as \autoref{tab: wall_timing_hybrid} shows, but it also controls how strictly the instantaneous dynamics are learned. The initial epoch count, therefore, sits directly on the trade-off between offline cost and reconstruction fidelity. 
+
+\begin{figure}[htp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/loss_evolution_750.png}
+    \caption{Loss and correlation coefficient evolution over the initial training run sampling data $0 \mapsto t^*_\text{train}$}
+    \label{fig: 750_epochs}
+\end{figure}
+
+The initial training epochs are varied between 
+
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+    \begin{groupplot}[
+        group style={group size=2 by 1, horizontal sep=1.7cm},
+        width=6.2cm, height=6.0cm,
+        symbolic x coords={250,500,750},
+        xtick=data,
+        xlabel={Epochs},
+        enlarge x limits=0.30,
+        ymajorgrids=true,
+        grid style={gray!30},
+        nodes near coords,
+        every node near coord/.append style={anchor=south, font=\footnotesize},
+        tick label style={font=\small},
+        label style={font=\small},
+        title style={font=\small\bfseries},
+      ]
+      \nextgroupplot[ybar, bar width=24pt, ylabel={$S_\mathrm{loop}$}, ymin=0, ymax=2.35,
+                     title={Inference-loop speedup},
+                     nodes near coords={\pgfmathprintnumber[fixed,precision=2]{\pgfplotspointmeta}}]
+        \addplot[draw=black, fill=blue!55] coordinates {(250,2.08) (500,1.48) (750,1.55)};
+        % \draw[dashed,gray] (axis cs:8,1) -- (axis cs:32,1)
+        %   node[pos=0.5,above,font=\scriptsize\itshape,gray,inner sep=1pt]{break-even};
+      \nextgroupplot[ybar, bar width=24pt, ylabel={$S_\mathrm{eff}$}, ymin=0, ymax=0.13,
+                     ytick={0,0.025,0.05,0.075,0.1,0.125},
+                     scaled y ticks=false,
+                     yticklabel style={/pgf/number format/fixed, /pgf/number format/precision=3},
+                     title={Effective speedup (incl.\ training)},
+                     nodes near coords={\pgfmathprintnumber[fixed,precision=3]{\pgfplotspointmeta}}]
+        \addplot[draw=black, fill=orange!75] coordinates {(250,0.111) (500,0.058) (750,0.059)};
+    \end{groupplot}
+  \end{tikzpicture}
+  \caption{Effect of the autoencoder latent dimension on hybrid solver acceleration. Left: inference-loop speedup $S_\mathrm{loop}$;  Right: effective speedup $S_\mathrm{eff}$, including training costs.}
+  \label{fig: latent_speedup}
+\end{figure}
 
 
 
