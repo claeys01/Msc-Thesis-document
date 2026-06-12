@@ -586,8 +586,7 @@ In addition to the time-averaged statistics examined above, a physically faithfu
 In the low frequency part of the spectrum, both simulations clearly produce similar frequencies. The primary shedding frequency is nicely present at  at $fD/U \approx 0.2$ in both simulations, as was already visible in the force coefficient plot \ref{fig: base_forces}; the higher harmonics of the shedding frequency, associated with the secondary wake structures discussed in \ref{fig: vortex_shedding}, are also captured by the hybrid simulation. The hybrid and reference curve remain closely aligned in the middle frequency range, until the curves separate near $fD/U \approx 2$--$3$. No genuine Kolmogorov $f^{-5/3}$ inertial subrange is expected in a two-dimensional wake at $Re=2500$, in two dimensions the forward (small-scale) cascade follows the steeper $k^{-3}$ enstrophy scaling rather than $k^{-5/3}$ \cite{Boffetta2011}. 
 
 Beyond the separation frequency near $fD/U \approx 2$--$3$, the reference falls steeply to $\mathcal{O}(10^{-10})$, whereas the hybrid seems to move into a plateau two to four decades above the reference. This indicates that $\mathcal{P}$ introduces a high-frequency error that is not tied to a single frequency but is spread across the frequency range. It becomes visible only beyond the crossover near $fD/U \approx 2$--$3$, where the true spectrum drops below it;
-the crossover therefore marks the point at which the error stops being masked, not where it begins. Because this error is broadband and lies well below the energetic shedding scales, it is consistent with a reconstruction artefact of the decoder $\psi_\theta$ rather than an error in the learned latent dynamics $f_\phi$.
-
+The crossover, therefore, marks the point at which the error stops being masked, not where it begins. Because this error is broadband and lies well below the energetic shedding scales, it is consistent with a reconstruction artefact of the decoder $\psi_\theta$ rather than an error in the learned latent dynamics $f_\phi$.
 
 \subsection{Autoencoder performance}
 \label{subsect: 4_ae_performance}
@@ -615,21 +614,54 @@ The autoencoder is the entry and exit point of every $\tilde{\boldsymbol{\mathca
 \autoref{fig: combined_training_base} extends the loss over the 2 retraining stages, where each stage updates the weights for an additional $100$ epochs using a reduced learning rate (\autoref{subsect: retraining}). The first learning rate leaves the losses mostly unchanged, but with additional data, it has learned additional dynamics, reflected in the ability to perform longer rollouts, as discussed in \autoref{subsect: 4_forces}. The second retrain drives the test loss up by nearly an order of magnitude while train and validation hold steady: the accumulated dissipative drift (\autoref{subsect: 4_forces}) has pushed $\mathcal{S}$ into a regime that is under-represented in the training data, which makes it so that the generalisation outside of the training regime drastically worsens. This same disparity in training data, and current state of $\mathcal{S}$, is also reflected in the immediately truncated rollouts $7$ and $9$ (\autoref{tab: base_rollout_summary}).
 
 \subsubsection{Instantaneous reconstruction performance}
-The reconstruction of an instantaneous velocity field is displayed in  \autoref{fig: base_velocity_comp} for the two velocity components. These figures show that $\psi_\theta$ performs well in reconstructing the large scale structures of the flow, aligning with the conclusions from \autoref{subsect: 4_physical_consistency}
+The reconstruction of an instantaneous velocity field is displayed in  \autoref{fig: base_velocity_comp} for the two velocity components. These figures show that $\psi_\theta$ performs well in reconstructing the large scale structures of the flow, aligning with the conclusions from \autoref{subsect: 4_physical_consistency}.
 
 \begin{figure}[htp]
     \centering
-    \includegraphics[width=\linewidth]{figures/Results/base/velocity_comp.png}
-    \caption{Caption}
+    \begin{tikzpicture}
+        \node[anchor=south west, inner sep=0] (img)
+            {\includegraphics[width=0.95\linewidth]{figures/Results/base/velocity_comp.png}};
+        % normalised coords: (0,0)=bottom-left, (1,1)=top-right of the image
+        \begin{scope}[x={(img.south east)}, y={(img.north west)}]
+            % --- column headers ---
+            \node[anchor=south] at (0.30, 0.95) {\large $\mathbf{u}$};
+            \node[anchor=south] at (0.7, 0.95) {\large $\hat{\mathbf{u}}$};
+            % --- row labels ---
+            % \node[rotate=90, anchor=center] at (-0.02, 0.75) {$u/U$};
+            % \node[rotate=90, anchor=center] at (-0.02, 0.3) {$v/U$};
+        \end{scope}
+    \end{tikzpicture}
+    \vspace{-2em}
+    \caption{Instantaneous reconstruction of the velocity field by the baseline autoencoder at $t^*=40.46$. Top row: streamwise component $u$; bottom row: transverse component $v$. Left column: WaterLily reference; right column: instantaneous autoencoder reconstruction $\hat{\mathbf{u}}=\psi_\theta(\varphi_\theta(\mathbf{u}))$}
     \label{fig: base_velocity_comp}
 \end{figure}
 
-\begin{figure}[H]
+The instantaneous reconstructions are visibly smoother than the reference, most notably along the thin shear layers separating from the cylinder. These over-smoothing and the concentration of error in high-gradient regions are documented failure modes of autoencoders applied to turbulent flows, as they have shown to reproduce the large-scale coherent structures correctly but act as nonlinear filters that attenuate the small-scale, high-wavenumber content~\cite{Lu2025, Glaws2020, Jeon2022}. These smoother gradients, especially at the cylinder wall, are the direct explanation of the dissipative bias seen in the integrated forces, since the structures re-injected into $\mathcal{S}$ are systematically weaker than the reference.
+
+This "smoothing" of the reconstructed field is more apparent when computing the vorticity using the reconstructed velocity components. The instantaneous vorticity in \autoref{fig: base_curl_comp} shows how the effect of the more smeared out velocity gradients.
+
+\begin{figure}[htp]
     \centering
-    \includegraphics[width=\linewidth]{figures/Results/base/curl_comp.png}
-    \caption{Caption}
+    \begin{tikzpicture}
+        \node[anchor=south west, inner sep=0] (img)
+            {\includegraphics[width=.95\linewidth]{figures/Results/base/curl_comp.png}};
+        % normalised coords: (0,0)=bottom-left, (1,1)=top-right of the image
+        \begin{scope}[x={(img.south east)}, y={(img.north west)}]
+            % --- column headers ---
+            \node[anchor=south] at (0.275, 0.95) {Reference};
+            \node[anchor=south] at (0.675, 0.95) {Reconstructed};
+            % --- row labels ---
+            % \node[rotate=90, anchor=center] at (-0.02, 0.75) {$u/U$};
+            % \node[rotate=90, anchor=center] at (-0.02, 0.3) {$v/U$};
+        \end{scope}
+    \end{tikzpicture}
+ \caption{Instantaneous vorticity $\omega$ of the same snapshot as \autoref{fig: base_velocity_comp}. Left: WaterLily reference; right: autoencoder reconstruction. The reconstructed shear layers and vortex cores are diffused and exhibit reduced peak amplitudes, illustrating the autoencoder's low-pass behaviour.}
     \label{fig: base_curl_comp}
 \end{figure}
+
+The reference shear layers and shed vortex cores are sharp and compact, whereas the reconstructed field is diffuse: the cores are spread over a wider area at reduced peak amplitude, and the thin braid of vorticity in the immediate wake is largely smeared out. \autoref{fig: base_curl_comp} also shows the addition of noisy artefacts in the near-wall region and close to the vortices, which explains the presence of the added noise observed in \autoref{subsect: 4_physical_consistency}. 
+
+Overall, the autoencoder faithfully reproduces the large-scale structures in the wake and shedding cycle, with $CC_u,\, CC_v$ converging near unity, at the cost of attenuating the small-scale content revealed by the vorticity field. These characteristics set the pipeline's accuracy floor; investigating whether it can be lowered by varying the latent dimension, the physics-loss weights, or the training procedures is the subject of the parameter study in \autoref{subsect: 4_ae_parameters}.
 
 
 \subsection{NODE performance}
