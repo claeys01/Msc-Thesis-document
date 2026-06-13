@@ -368,13 +368,6 @@ The Finite Volume Method in Computational Fluid Dynamics : An Advanced Introduct
   note    = {Refines Germano's dynamic model by introducing least-squares minimization to stabilize $C_s$.}
 }
 
-@techReport{Weymouth2025,
-   author = {Gabriel D Weymouth and Bernat Font},
-   keywords = {Cartesian-grid methods,Julia WaterLilyjl repository: https://githubcom/WaterLily-jl/WaterLilyjl Manuscript repository: https://githubcom/WaterLily-jl/WaterLilyjl_CPC_2024,computational fluid dynamics,heterogeneous programming},
-   title = {WaterLily.jl: A differentiable and backend-agnostic Julia solver for incompressible viscous flow around dynamic bodies},
-   url = {https://github.com/WaterLily-jl/WaterLily.jl},
-   year = {2025}
-}
 @article{Piomelli2014,
    author = {U. Piomelli},
    doi = {10.1098/rsta.2013.0320},
@@ -1566,8 +1559,19 @@ isbn="978-3-540-27039-3"
   year         = {2024},
   note         = {Accessed: 2025-08-25}
 }
-
-
+@article{Go2023,
+   abstract = {In this study, a physics-informed neural network (PINN)-based surrogate model was proposed for a virtual thermal sensor (VTS) with real-time simulation. This surrogate model uses temperature data measured by a small number of physical temperature sensors to estimate the temperature field or the input heat flux in a non-sensored area. In particular, for real-time simulation, the measurement data are set as a direct input feature of the neural network with some modification of the partial differential equation (PDE) loss, and the output temperature over the non-sensored area is immediately predicted accordingly. To validate the performance of the proposed method, we solved three one- and two-dimensional problems. From the results, the proposed method could immediately predict the temperature field and the input heat flux with high accuracy. Moreover, it was found that the predicted temperature field and the input heat flux followed the trend of the ground truth well, even when noise was included in the measurement data. In particular, when an unknown heat flux is imposed, the temperature field and unknown heat flux can be predicted using measurement input data by training with multiple cases for the input heat flux.},
+   author = {Myeong Seok Go and Jae Hyuk Lim and Seungchul Lee},
+   doi = {10.1016/j.ijheatmasstransfer.2023.124392},
+   issn = {00179310},
+   journal = {International Journal of Heat and Mass Transfer},
+   keywords = {Heat conduction problem,Physics-informed neural network (PINN),Real-time simulation,Surrogate model,Virtual thermal sensor (VTS)},
+   month = {11},
+   publisher = {Elsevier Ltd},
+   title = {Physics-informed neural network-based surrogate model for a virtual thermal sensor with real-time simulation},
+   volume = {214},
+   year = {2023}
+}
 
 @article{Sholokhov2023,
    abstract = {Building reduced-order models (ROMs) is essential for efficient forecasting and control of complex dynamical systems. Recently, autoencoder-based methods for building such models have gained significant traction, but their demand for data limits their use when the data is scarce and expensive. We propose aiding a model’s training with the knowledge of physics using a collocation-based physics-informed loss term. Our innovation builds on ideas from classical collocation methods of numerical analysis to embed knowledge from a known equation into the latent-space dynamics of a ROM. We show that the addition of our physics-informed loss allows for exceptional data supply strategies that improves the performance of ROMs in data-scarce settings, where training high-quality data-driven models is impossible. Namely, for a problem of modeling a high-dimensional nonlinear PDE, our experiments show × 5 performance gains, measured by prediction error, in a low-data regime, × 10 performance gains in tasks of high-noise learning, × 100 gains in the efficiency of utilizing the latent-space dimension, and × 200 gains in tasks of far-out out-of-distribution forecasting relative to purely data-driven models. These improvements pave the way for broader adoption of network-based physics-informed ROMs in compressive sensing and control applications.},
@@ -1781,8 +1785,8 @@ ark = {ark:/44463/DelftBluePhase2}
    year = {2015}
 }
 
-@article{Weymouth2025Biot,
-   abstract = {We introduce a novel boundary condition for incompressible Eulerian simulations formulated using a Biot-Savart vorticity integral that maintains high-accuracy results even when the domain boundary is within a body-length of immersed solid boundaries. The key prerequisite to accurately couple the Biot-Savart condition to the Eulerian velocity and pressure fields is including the influence of the vorticity generated at the immersed boundaries during the incompressible-flow projection step. While the resulting linear operator for the pressure is non-local, it can be efficiently solved by partitioning it into the standard local Poisson operator and the Biot-Savart update. We use oct-tree clustering for the Fast Multi-level Method (FM$\ell$M) to reduce the computational cost of the evaluation of the Biot-Savart integral on the boundaries of a 3D simulation with $N$ points from $O(N^\{5/3\})$ to $O(N)$ and show that this has bounded errors. We show that the new method captures the analytical added-mass force of accelerating 2D and 3D plates exactly and matches experimentally measured wake development even when the entire domain only extends 1/2 diameter from the plate. The new method also predicts accurate time-varying forces for a 2D circle and 3D sphere regardless of domain size, while classical boundary conditions require a domain more than 100 times larger in 2D to converge on the new method's result. Finally, we study the highly sensitive 2D deflected wakes produced by high frequency flapping foils to the new boundary conditions and show that truncating the deflected wake within four cord-lengths of the body changes the body force amplitudes by 10-40%. Doubling the wake size recovers the asymptotic results to within 5%.},
+@article{BiotWeymouth2025,
+   abstract = {We introduce a novel boundary condition for incompressible Eulerian simulations formulated using a Biot-Savart vorticity integral that maintains high-accuracy results even when the domain boundary is within a body-length of immersed solid boundaries. The key prerequisite to accurately couple the Biot-Savart condition to the Eulerian velocity and pressure fields is including the influence of the vorticity generated at the immersed boundaries during the incompressible-flow projection step. While the resulting linear operator for the pressure is non-local, it can be efficiently solved by partitioning it into the standard local Poisson operator and the Biot-Savart update. We use oct-tree clustering for the Fast Multi-level Method (FM$\ell$M) to reduce the computational cost of the evaluation of the Biot-Savart integral on the boundaries of a 3D simulation with $N$ points from $O(N^\{5/3\})$ to $O(N)$ and show that this has bounded errors. We show that the new method captures the analytical added-mass force of accelerating 2D and 3D plates exactly and matches experimentally measured wake development even when the entire domain only extends 1/2 diameter from the plate. The new method also predicts accurate time-varying forces for a 2D circle and 3D sphere regardless of domain size, while classical boundary conditions require a domain more than 100 times larger in 2D to converge on the new method's result. Finally, we study the highly sensitive 2D deflected wakes produced by high frequency flapping foils to the new boundary conditions and show that truncating the deflected wake within four cord-lengths of the body changes the body force amplitudes by 10-40\%. Doubling the wake size recovers the asymptotic results to within 5\%.},
    author = {Gabriel D. Weymouth and Marin Lauber},
    month = {3},
    title = {Using Biot-Savart boundary conditions for unbounded external flow on Eulerian meshes},
@@ -1827,6 +1831,19 @@ ark = {ark:/44463/DelftBluePhase2}
    year = {2020}
 }
 
+@article{Glaws2020,
+   abstract = {As the size of turbulent flow simulations continues to grow, in situ data compression is becoming increasingly important for visualization, analysis, and restart checkpointing. For these applications, single-pass compression techniques with low computational and communication overhead are crucial. In this paper we present a deep-learning approach to in situ compression using an autoencoder architecture that is customized for three-dimensional turbulent flows and is well suited for contemporary heterogeneous computing resources. The autoencoder is compared against a recently introduced randomized single-pass singular value decomposition (SVD) for three different canonical turbulent flows: decaying homogeneous isotropic turbulence, a Taylor-Green vortex, and turbulent channel flow. Our proposed fully convolutional autoencoder architecture compresses turbulent flow snapshots by a factor of 64 with a single pass, allows for arbitrarily sized input fields, is cheaper to compute than the randomized single-pass SVD for typical simulation sizes, performs well on unseen flow configurations, and has been made publicly available. The results reported here show that the autoencoder dramatically outperforms a randomized single-pass SVD with similar compression ratio and yields comparable performance to a higher-rank decomposition with an order of magnitude less compression in regard to preserving a number of important statistical quantities such as turbulent kinetic energy, enstrophy, and Reynolds stresses.},
+   author = {Andrew Glaws and Ryan King and Michael Sprague},
+   doi = {10.1103/PhysRevFluids.5.114602},
+   issn = {2469990X},
+   issue = {11},
+   journal = {Physical Review Fluids},
+   month = {11},
+   publisher = {American Physical Society},
+   title = {Deep learning for in situ data compression of large turbulent flow simulations},
+   volume = {5},
+   year = {2020}
+}
 
 @article{Parnaudeau2008,
    abstract = {This work contributes to the study of flow over a circular cylinder at Reynolds number Re=3900. Although this classical flow is widely documented in the literature, especially for this precise Reynolds number that leads to a subcritical flow regime, there is no consensus about the turbulence statistics immediately just behind the obstacle. Here, the flow is investigated both numerically with large eddy simulation and experimentally with hot-wire anemometry and particle image velocimetry. The numerical simulation is performed using high-order schemes and a specific immersed boundary method. The present study focuses on turbulence statistics and power spectra in the near wake up to ten diameters. Statistical estimation is shown to need large integration times increasing the computational cost and leading to an uncertainty of about 10\% for most flow characteristics considered in this study. The present numerical and experimental results are found to be in good agreement with previous large eddy simulation data. Contrary to this, the present results show differences compared to the experimental data found in the literature, the differences being larger than the estimated uncertainty range. Therefore, previous numerical-experimental controversy for this flow seems to be reduced with the data presented in this article. © 2008 American Institute of Physics.},
@@ -1852,14 +1869,4 @@ ark = {ark:/44463/DelftBluePhase2}
    title = {Two-dimensional turbulence},
    volume = {44},
    year = {2011}
-}
-
-@article{Hasegawa2020,
-   abstract = {We propose a method to construct a reduced order model with machine learning for unsteady flows. The present machine-learned reduced order model (ML-ROM) is constructed by combining a convolutional neural network autoencoder (CNN-AE) and a long short-term memory (LSTM), which are trained in a sequential manner. First, the CNN-AE is trained using direct numerical simulation (DNS) data so as to map the high-dimensional flow data into low-dimensional latent space. Then, the LSTM is utilized to establish a temporal prediction system for the low-dimensionalized vectors obtained by CNN-AE. As a test case, we consider flows around a bluff body whose shape is defined using a combination of trigonometric functions with random amplitudes. The present ML-ROMs are trained on a set of 80 bluff body shapes and tested on a different set of 20 bluff body shapes not used for training, with both training and test shapes chosen from the same random distribution. The flow fields are confirmed to be well reproduced by the present ML-ROM in terms of various statistics. We also focus on the influence of two main parameters: (1) the latent vector size in the CNN-AE, and (2) the time step size between the mapped vectors used for the LSTM. The present results show that the ML-ROM works well even for unseen shapes of bluff bodies when these parameters are properly chosen, which implies great potential for the present type of ML-ROM to be applied to more complex flows},
-   author = {Kazuto Hasegawa and Kai Fukami and Takaaki Murata and Koji Fukagata},
-   doi = {10.1007/s00162-020-00528-w},
-   month = {3},
-   title = {Machine-learning-based reduced order modeling for unsteady flows around bluff bodies of various shapes},
-   url = {http://arxiv.org/abs/2003.07548 http://dx.doi.org/10.1007/s00162-020-00528-w},
-   year = {2020}
 }

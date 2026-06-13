@@ -53,7 +53,7 @@ together with their relative counterparts
   e^\text{rel}_{C_L} &= \frac{\bigl| C_L^\text{rms} - C_{L,\text{ref}}^\text{rms} \bigr|}{C_{L,\text{ref}}^\text{rms}},
 \end{align}
 
-The mean drag coefficient allows the assessment of the physically meaningful streamwise loading, whereas the mean lift coefficient vanishes due to symmetry, so the fluctuation amplitude $C_L^\text{rms}$ is compared. The comparison of the relative errors allow comparison between different hybrid simulations. These integral force metrics confirm loading but tell nothing about the errors in the wake of the simulation, which motivates the comparison metrics of the field quantities below. 
+The mean drag coefficient allows the assessment of the physically meaningful streamwise loading, whereas the mean lift coefficient vanishes due to symmetry, so the fluctuation amplitude $C_L^\text{rms}$ is compared. The comparison of the relative errors allows comparison between different hybrid simulations. These integral force metrics confirm loading but tell nothing about the errors in the wake of the simulation, which motivates the comparison metrics of the field quantities below. 
 
 \subsubsection{Mean flow and Reynolds stresses}
  Each time-averaged field is compared against its reference cell-by-cell over the fluid domain $\Omega$ through two complementary metrics, namely the mean absolute error (MAE):
@@ -461,7 +461,7 @@ The time-averaged velocity components are computed by sampling instantaneous flo
 
 \autoref{fig: base_hybrid_mean_u} and \autoref{fig: base_ref_mean_u} show that both $\langle u\rangle$ have converged in time, showing smooth contours and gradients around the cylinder walls. The only visual difference can be seen in the wake of the cylinder, where the hybrid simulation is less smooth than the reference. \autoref{fig: base_hybrid_mean_v} and \autoref{fig: base_ref_mean_v} also seem to show similar behaviour, where the contours of the mean spanwise flow of the reference are a bit less smooth compared to that of the reference simulation, indicating that the hybrid simulation lacks a small amount of averaging data. 
 
-The absolute-difference fields (\autoref{fig: base_diff_mean_u} \& \autoref{fig: base_diff_mean_v}) show that the discrepancy between the two simulations is negligible over the body and the upstream region and is confined almost entirely to the wake, $x/L \gtrsim 1$. The error peaks at approximately $0.13\,U$ for $\langle u\rangle$ and $0.08\,U$ for $\langle v\rangle$ mostly in the positive spanwise area just behind the cylinder. This matches what could be seen in \autoref{fig: base_forces}, where the rollouts produced lift forces with a lesser amplitude in the positive region of the cylinder wall. Which is exactly the region where the most difference between the mean flow components exists. 
+The absolute-difference fields (\autoref{fig: base_diff_mean_u} \& \autoref{fig: base_diff_mean_v}) show that the discrepancy between the two simulations is negligible over the body and the upstream region and is confined almost entirely to the wake, $x/L \gtrsim 1$. The error peaks at approximately $0.13\,U$ for $\langle u\rangle$ and $0.08\,U$ for $\langle v\rangle$ mostly in the positive spanwise area just behind the cylinder. This matches what could be seen in \autoref{fig: base_forces}, where the rollouts produced lift forces with a lesser amplitude in the positive region of the cylinder wall. This is exactly the region where the most difference between the mean flow components exists. 
 
 
 \subsubsection{Reynolds Stress Components}
@@ -574,7 +574,7 @@ The rightmost column of \autoref{fig: base_rst} shows the discrepancies, especia
 \subsection{Spectral Fidelity of the Wake}
 \label{subsect: 4_physical_consistency}
 
-In addition to the time-averaged statistics examined above, a physically faithful hybrid simulation must also reproduce how the energy of the turbulent fluctuations is distributed across temporal scales. This is assessed by sampling the transverse velocity $v$ at a fixed wake location $(x/L, y/L) = (2, 0.5)$ in both $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ and comparing their one-sided power spectra $\mathrm{PS}(v)$, estimated with Welch's method using five segments of the simulation window. Each segment therefore spans approximately five shedding periods. The resulting spectra are shown in \autoref{fig: base_psd} against the non-dimensional frequency $fD/U$.
+In addition to the time-averaged statistics examined above, a physically faithful hybrid simulation must also reproduce the distribution of turbulent energy across temporal scales. This is assessed by sampling the transverse velocity $v$ at a fixed wake location $(x/L, y/L) = (2, 0.5)$ in both $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ and comparing their one-sided power spectra $\mathrm{PS}(v)$, estimated with Welch's method using five segments of the simulation window. Each segment, therefore, spans approximately five shedding periods. The resulting spectra are shown in \autoref{fig: base_psd} against the non-dimensional frequency $fD/U$.
 
 \begin{figure}[htp]
     \centering
@@ -583,7 +583,7 @@ In addition to the time-averaged statistics examined above, a physically faithfu
   \label{fig: base_psd}
   \end{figure}
 
-In the low frequency part of the spectrum, both simulations clearly produce similar frequencies. The primary shedding frequency is nicely present at  at $fD/U \approx 0.2$ in both simulations, as was already visible in the force coefficient plot \ref{fig: base_forces}; the higher harmonics of the shedding frequency, associated with the secondary wake structures discussed in \ref{fig: vortex_shedding}, are also captured by the hybrid simulation. The hybrid and reference curve remain closely aligned in the middle frequency range, until the curves separate near $fD/U \approx 2$--$3$. No genuine Kolmogorov $f^{-5/3}$ inertial subrange is expected in a two-dimensional wake at $Re=2500$, in two dimensions the forward (small-scale) cascade follows the steeper $k^{-3}$ enstrophy scaling rather than $k^{-5/3}$ \cite{Boffetta2011}. 
+In the low-frequency part of the spectrum, both simulations clearly produce similar frequencies. The primary shedding frequency is nicely present at  $fD/U \approx 0.2$ in both simulations, as was already visible in the force coefficient plot \ref{fig: base_forces}; the higher harmonics of the shedding frequency, associated with the secondary wake structures discussed in \ref{fig: vortex_shedding}, are also captured by the hybrid simulation. The hybrid and reference curve remain closely aligned in the middle frequency range, until the curves separate near $fD/U \approx 2$--$3$. No genuine Kolmogorov $f^{-5/3}$ inertial subrange is expected in a two-dimensional wake at $Re=2500$, in two dimensions the forward (small-scale) cascade follows the steeper $k^{-3}$ enstrophy scaling rather than $k^{-5/3}$ \cite{Boffetta2011}. 
 
 Beyond the separation frequency near $fD/U \approx 2$--$3$, the reference falls steeply to $\mathcal{O}(10^{-10})$, whereas the hybrid seems to move into a plateau two to four decades above the reference. This indicates that $\mathcal{P}$ introduces a high-frequency error that is not tied to a single frequency but is spread across the frequency range. It becomes visible only beyond the crossover near $fD/U \approx 2$--$3$, where the true spectrum drops below it;
 The crossover, therefore, marks the point at which the error stops being masked, not where it begins. Because this error is broadband and lies well below the energetic shedding scales, it is consistent with a reconstruction artefact of the decoder $\psi_\theta$ rather than an error in the learned latent dynamics $f_\phi$.
@@ -738,19 +738,9 @@ this loss is carried almost entirely by the second-order statistics. As the bott
 This comparison shows the trade-off the bottleneck imposes between speedup and the physical fidelity of the reconstructed turbulence statistics. At $N_z = 8$, the simpler latent dynamics produce by far the longest rollouts and the largest $S_\text{loop}$, but at the expense of the RST fields; the $N_z = 32$ shows that more complex latent dynamics allow for better turbulent reconstructions, but at the expense of a lesser acceleration performance. This means that the appropriate bottleneck size is thus dictated by whether statistical fidelity or acceleration behaviour is the priority for a given application. 
 
 \subsubsection{Training Epochs}
-The number of training epochs are varied around the baseline of $500$, since the autoencoders' initial training consumes most of the wall time, as \autoref{tab: wall_timing_hybrid} shows, but it also controls how strictly the instantaneous dynamics are learned. The initial epoch count, therefore, sits directly on the trade-off between offline cost and reconstruction fidelity. 
+The number of training epochs is varied around the baseline of $500$, since the autoencoders' initial training consumes most of the wall time, as \autoref{tab: wall_timing_hybrid} shows, but it also controls how strictly the instantaneous dynamics are learned, and therefore how the fluctuating field is represented in the latent space. The epoch count $E$ is swept over $E \in \{250, 500, 750\}$, with $E = 500$ the baseline; the retraining epochs are held fixed at $100$ throughout, so the sweep is meant to show the effect of the \emph{initial} compression quality.
 
 \begin{figure}[htp]
-    \centering
-    \includegraphics[width=\linewidth]{figures/Results/loss_evolution_750.png}
-    \caption{Loss and correlation coefficient evolution over the initial training run sampling data $0 \mapsto t^*_\text{train}$}
-    \label{fig: 750_epochs}
-\end{figure}
-
-The initial training epochs are varied between 
-
-
-\begin{figure}[htbp]
   \centering
   \begin{tikzpicture}
     \begin{groupplot}[
@@ -783,14 +773,33 @@ The initial training epochs are varied between
         \addplot[draw=black, fill=orange!75] coordinates {(250,0.111) (500,0.058) (750,0.059)};
     \end{groupplot}
   \end{tikzpicture}
-  \caption{Effect of the autoencoder latent dimension on hybrid solver acceleration. Left: inference-loop speedup $S_\mathrm{loop}$;  Right: effective speedup $S_\mathrm{eff}$, including training costs.}
-  \label{fig: latent_speedup}
+  \caption{Effect of initial training epochs of the autoencoder on hybrid solver acceleration. Left: inference-loop speedup $S_\mathrm{loop}$;  Right: effective speedup $S_\mathrm{eff}$, including training costs.}
+  \label{fig: epoch_speedup}
 \end{figure}
 
+\autoref{fig: epoch_speedup} shows how the effect on the acceleration performance mirrors that of the latent dimensions. The least-converged model performs best: at $E = 250$, the hybrid loop reaches $S_\text{loop} = 2.08$, against $1.48$ at the baseline and $1.55$ at $E = 750$. Just as with the narrower bottleneck, the improvement is carried by the average rollout length: $623$ CFD steps per accepted prediction at $E = 250$, compared to $408$ and $391$ at $E = 500$ and $750$. An under-trained encoder has not yet learned the fine turbulent fluctuations, so it produces a smoother, lower-complexity latent representation; in turn, the dynamics that $f_\phi$ must reproduce are correspondingly simpler, leading to $\tilde{\boldsymbol{\mathcal{T}}}_z$ remaining in distribution for longer before the KNN monitor flags it as OOD. Reducing the training budget, therefore, affects the rollout length through the same mechanism as shrinking $N_z$: it lowers the effective information that can be stored in the flow's latent representation.
 
+\begin{figure}[htp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/epoch_rst_comp.pdf}
+    \caption{Effect of the initial autoencoder training epochs on the accuracy of the reconstructed Reynolds-stress field. Left: mean absolute error $\varepsilon$ of the three independent Reynolds-stress components. Right: spatial correlation coefficient $\rho$ of the same components. Increasing epoch count lowers $\varepsilon$, most strongly for $\langle v'v'\rangle$, while $\rho$ stays near unity}
+    \label{fig: epoch_rst_comp}
+\end{figure}
+
+\autoref{fig: epoch_rst_comp} shows how the increase in epochs lowers the error in magnitude of the mean turbulent fluctuations, especially the transverse $\langle v'v' \rangle$ component. The spatial correlation $\rho$ is already high at $E = 250$ and
+barely changes. The encoder, therefore, captures the spatial pattern of the Reynolds stresses almost immediately, and the additional epochs mainly calibrate the fluctuation amplitude rather than relocate it. This behaviour can be highlighted when plotting the trajectory of the latent representation of the training window: 
+
+\begin{figure}[htp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/epoch_latent_comp.pdf}
+    \caption{Four representative latent coordinates of the latent trajectory $\mathcal{T}_z$ for autoencoders trained $E = 250$ (red), $500$ (blue) and $750$ (black) epochs. The lower-epoch $\mathcal{T}_z$ has a higher amplitude than the higher-epoch trajectories, which appear to converge as $E$ increases.}
+    \label{fig: latent_epochs}
+\end{figure}
+
+\autoref{fig: latent_epochs} confirms this conclusion. It shows how all three initial encoded trajectories trace the same dominant shedding oscillation, so the spatial pattern is shared, but the lower-epoch $\mathcal{T}_z$ oscillates at a higher amplitude that seems to converge as the number of epochs increases. The extra epochs thus rescale the latent signal rather than reshape it; this rescaled amplitude then gets translated to physical space by $\psi_\theta$, explaining the drop in $\varepsilon$ at near-constant $\rho$. The higher-amplitude, smoother $E = 250$ trajectory also provides the simpler dynamical target for $f_\phi$, which is why it sustains the longest average rollout.
 
 \subsection{Physics weights}
-% Finally, the divergence and curl weights $(\lambda_\text{div},\,\lambda_\text{curl})$ govern how strictly the reconstructed field respects the incompressibility and vorticity structure of the flow; because $\hat{\mathbf{u}}$ is re-injected into the WaterLily solver, a reconstruction that is sharp but physically inadmissible can destabilise the downstream simulation, so these weights trade reconstruction fidelity against physical consistency rather than against cost.
+
 
 \subsection{NODE}
 \subsubsection{Group size}
