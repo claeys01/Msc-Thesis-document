@@ -665,17 +665,94 @@ Overall, the autoencoder faithfully reproduces the large-scale structures in the
 
 
 \subsection{NODE performance}
+\label{subsect: 4_node_performance}
 
+The autoencoder's performance change over the hybrid simulation, having been characterised, and the spatial accuracy floor thereby fixed, the learning behaviour of $f_\phi$ can now be traced through the simulation to understand the inference behaviour of the neural ODE. The latent dynamics are followed from the initial multiple-shooting fit through to the retraining optimisations that the hybrid loop relies on, tracking how their fidelity evolves as $f_\phi$ is retrained on the growing trajectory set.
+
+Figure~\ref{fig: base_node_ms} shows the initial multiple-shooting training. Within every segment, the prediction $\tilde{z}$ tracks the reference $z$ closely, and the shooting gaps at the segment boundaries have closed to the point of being barely visible. The fit is visibly converged, but it is also segment-wise: the loss~\eqref{eq: node_loss_ms} only ever penalises $f_\phi$ over a single span of $n_s$ samples at a time. The training scheme, therefore, biases $f_\phi$ towards short-horizon accuracy and reveals nothing about how the dynamics compound once the segment resets are removed.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Results/base/trajectories.pdf}
+    \caption{Converged multiple-shooting fit; markers denote the start and end of each shooting segment.}
+    \label{fig: base_node_ms}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Results/base/rollout_single_shooting.pdf}
+        \caption{Single rollout from $t^*=0$ over the full training span, no segment resets.}
+        \label{fig: base_node_singleshoot}
+    \end{subfigure}
+    \caption{Latent dynamics of the baseline $f_\phi$ over the initial training span, four representative components shown. Reference $z$ (solid) against prediction $\tilde{z}$ (dashed). (a) Converged multiple-shooting fit, with segment start/end markers; (b) unaided single rollout integrated from $t^*=0$ over the same window.}
+\label{fig: base_node_rollout}
+\end{figure}
+
+The compounding error over longer rollouts is exposed in Figure~\ref{fig: base_node_singleshoot}, where $f_\phi$ is integrated from $t^*=0$ over the whole span. The dominant shedding oscillation is recovered correctly: phase and amplitude of the leading components track the reference through the first several periods, confirming that $f_\phi$ has learned the principal latent dynamics rather than merely interpolating between segment endpoints. Towards the end of the window, however, a clear mismatch is evident, with both a phase and an amplitude deficit relative to $z$. The long rollout thus sustains the correct dynamics over a limited horizon before drifting, which gets controlled by the KNN monitor. 
+
+After this first fit has concluded, the hybrid loop is ready to begin rolling out and accelerating the simulation; once the monitor has raised $n_\text{max, flags}$ flags, retraining is triggered, and $f_\phi$ is refitted on the augmented trajectory set $\boldsymbol{\mathcal{T}}_z^{(r+1)}$.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Results/base/multiple_shoot_multi.pdf}
+    \caption{Converged multiple-shooting fit on the augmented trajectory set; markers denote shooting-segment boundaries.}
+    \label{fig: retrain_node_ms}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Results/base/rollout_multi.pdf}
+    \caption{Single rollout from $t^*=0$ across both windows after the first retraining, no segment resets.}
+    \label{fig: retrain_node_singleshoot}
+    \end{subfigure}
+    \caption{Latent dynamics of $f_\phi$ after the first retraining, four representative components shown over two time windows ($t^* \in [0,20]$, top; $t^* \in [30,40]$, bottom). Reference $z$ (solid) against prediction $\tilde{z}$ (dashed). (a) Converged multiple-shooting fit on the augmented trajectory set, with segment start/end markers; (b) unaided single rollout from $t^*=0$ over the same windows.}
+    \label{fig: retrain_node_rollout}
+\end{figure}
+
+The converged multiple-shooting fit of the augmented set, \autoref{fig: retrain_node_ms}, is visibly looser than the initial fit of Figure~\ref{fig: base_node_ms}: the shooting segments no longer overlap cleanly at their boundaries, and small discontinuities are now present at the group ends. This follows from the retraining scheme and is similar to the behaviour shown in \autoref{fig: combined_training_base}. The newly harvested trajectory is but a minority of the augmented set~\eqref{eq: traju_update}, so the averaged loss~\eqref{eq: node_loss_ms} stays dominated by the originally represented dynamics, and the shortened retraining schedule leaves not enough room for the shooting gaps to be pushed to zero.
+
+The single rollout of Figure~\ref{fig: retrain_node_singleshoot}, however, tracks the reference markedly better than the looser segment fit would suggest: integrated from $t^*=0$, $f_\phi$ holds phase and amplitude on the dominant components across both windows, with the mismatch only emerging towards the end of the span. Thus, the looser segment fit does not automatically translate into worse rollouts; the retrained $f_\phi$ has still absorbed the dominant latent dynamics of the extended horizon, which is what the rollout and the achievable acceleration depend on.
+
+After the second retraining, the trajectory set spans three disjoint chunks, shown in the bottom panels of Figure~\ref{fig: retrain2_node_rollout}. The first two chunks remain well-fitted in both segments and the rollout, but the third is remarkably worse: its shooting segments leave visible gaps, and the rollout decorrelates early. Similar to the second retraining of the autoencoder, this is caused by the under-representation of the current flow state in the set, the chunk was harvested from the dissipative regime that rollouts~4--6 drove $\mathcal{S}$ into, and enters~\eqref{eq: traju_update} as a minority, so the averaged loss~\eqref{eq: node_loss_ms} stays dominated by the older dynamics and $f_\phi$ fits it only weakly, the same effect behind the immediate KNN trigger of rollout~7.
+
+
+ \begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Results/base/multiple_shoot_multi_2chunk.pdf}
+    \caption{Converged multiple-shooting fit on the twice-augmented trajectory set; markers denote shooting-segment boundaries.}
+    \label{fig: retrain2_node_ms}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Results/base/rollout_multi_2chunk.pdf}
+    \caption{Single rollout from $t^*=0$ across all windows after the second retraining, no segment resets.}
+    \label{fig: retrain2_node_singleshoot}
+    \end{subfigure}
+    \caption{Latent dynamics of $f_\phi$ after the second retraining, four representative components shown over three time windows ($t^* \in [0,20]$, top; $t^* \in [30.24,40.24]$, middle; $t^* \in [73.77, 83.77]$, bottom). Reference $z$ (solid) against prediction $\tilde{z}$ (dashed). (a) Converged multiple-shooting fit on the augmented trajectory set, with segment start/end markers; (b) unaided single rollout from $t^*=0$ over the same windows.}
+    \label{fig: retrain2_node_rollout}
+\end{figure}
+
+The behaviour of $f_\phi$ across the hybrid simulation shows that the temporal error can have two origins. The first is, as mentioned in \autoref{sect: KNN}: even a well-converged fit sustains the latent dynamics only over a limited horizon before the rollout drifts from the reference, partly through the autoregressive nature of the neural ODE, and partly through the chaotic divergence of the wake itself, which is why the rollout must be gated rather than trusted indefinitely. The second is matches the conclusions from \autoref{subsect: 4_ae_performance}: the fidelity of each retrained $f_\phi$ is set by how well the active flow regime is represented in $\boldsymbol{\mathcal{T}}_z$, so the well-covered early trajectories are reproduced accurately while the under-represented later trajectories are fitted only weakly. The retraining procedure effectively transfers the dominant dynamics when the new data follows the existing distribution, but degrades when it does not. The influence of 2 relevant governing hyperparameters, the group size $n_s$ and the continuity weight $\lambda_c$, on the rollout fidelity is examined next in \autoref{subsect: 4_node_ms}.
 
 \section{Effect of Pipeline Parameters}
+\label{sect: 4_p_parameters}
 
-Having discussed the functioning of the hybrid simulation and its physical effects in detail in Section~\ref{sect: 4_base_hybrid}, this section aims to highlight the influence of specific parameters of each component of $\mathcal{P}$  $(\varphi_\theta,\,\psi_\theta,\,f_\phi,\,\mathcal{K})$. Where certain parameters are isolated to quantify their effects, with two aims: to justify the baseline values of Table~\ref{tab: 4_hybrid_config} rather than presenting them arbitrarily, and to expose the trade-offs that lie within the developed framework. The study proceeds component by component, following the order of Chapter~\ref{chap: Methodology}. For the autoencoder, the latent dimension $N_z$, and the divergence and curl weights $(\lambda_\text{div},\,\lambda_\text{curl})$ of the physics-informed loss~\eqref{eq: AE_loss} are varied to study their influence on the hybrid simulation across its respective time window. For the Neural ODE, the multiple-shooting group size $n_s$ and the continuity weight $\lambda_c$ are varied, being the two parameters that directly govern rollout stability and training cost. For the integration monitor, the neighbour count $k$ and the threshold $\tau$ are varied, since these parameters directly influence the rollout length. 
+Having discussed the functioning of the hybrid simulation and its physical effects in detail in Section~\ref{sect: 4_base_hybrid}, this section aims to highlight the influence of specific parameters of each component of $\mathcal{P}$  $(\varphi_\theta,\,\psi_\theta,\,f_\phi,\,\mathcal{K})$. Where certain parameters are isolated to quantify their effects, with two aims: to justify the baseline values of Table~\ref{tab: 4_hybrid_config} rather than presenting them arbitrarily, and to expose the trade-offs that lie within the developed framework. The study proceeds component by component, following the order of Chapter~\ref{chap: Methodology}. For the autoencoder, the latent dimension $N_z$, and the divergence and curl weights $(\lambda_\text{div},\,\lambda_\text{curl})$ of the physics-informed loss~\eqref{eq: AE_loss} are varied to study their influence on the hybrid simulation across its respective time window. For the Neural ODE, the multiple-shooting group size $n_s$ and the continuity weight $\lambda_c$ are varied, being the two parameters that directly govern rollout stability and training cost. For the integration monitor, the neighbour count $k$ and the threshold $\tau$ are varied, as they directly influence the rollout length. 
 
 Each parameter is varied individually, following one-factor-at-a-time (OFAT) analysis, bout the baseline of Table~\ref{tab: 4_hybrid_config}; this means that the interactions between the parameters are not explored. A comprehensive study of the interactions between these parameters would require a large number of pipeline training runs, which would grow exponentially with the parameter count and exceed this work's computational budget. The parameter variations below, therefore, report the effect of each parameter, with the baseline serving as a solid comparison point. The following subsections will present and compare various hybrid simulations based on the comparison metrics presented in \ref{subsect: 4_metrics}, the exact values that were used to construct these metrics (such as $T^\text{h, tot}_\text{wall}$ and $T^\text{h, training}_\text{wall}$) are presented in \autoref{app: par_var}.
 \todo{put whole table with metrics in appendix}
 
 
 \subsection{Autoencoder}
+\label{subsect: 4_ae_parameters}
+
 The autoencoder uses $\varphi_\theta$ to compress instantaneous velocity snapshots $\mathbf{u}$ down to the compressed representation $\mathbf{z}$. Although it is not a time-dependent operation, it does have a significant influence on the dynamics of $\boldsymbol{\mathcal{T}}_z$, since it controls how the full-scale physics are represented on the lower-dimensional latent space. This means that the $\varphi_\theta$ dictates the dynamics that $f_\phi$ has to learn, which get rolled out by the ODE solver past the training horizon as the rolled out trajectory $\tilde{\boldsymbol{\mathcal{T}}}_z$. Subsequently, these rolled-out dynamics are reconstructed in physical space by $\psi_\theta$, which in turn influences the downstream flow behaviour, which is fed back into $\mathcal{P}$ at later retrain or hybrid stages. 
 
 To assess the influence of the autoencoder, three parameters are varied. The latent dimension $N_z$ determines the width of the bottleneck and governs how much of the flow physics is preserved by the compression operation. \textcite{Nair2024} has shown that for autoencoder--neural ODE surrogates of advection-dominated flows, the dimensions of the latent space have little influence on the solver behaviour of the neural ODE. The variation in latent dimensions, therefore, primarily serves as a study of the accuracy of latent and full-scale dynamics, not of rollout stability. 
@@ -786,8 +863,7 @@ The number of training epochs is varied around the baseline of $500$, since the 
     \label{fig: epoch_rst_comp}
 \end{figure}
 
-\autoref{fig: epoch_rst_comp} shows how the increase in epochs lowers the error in magnitude of the mean turbulent fluctuations, especially the transverse $\langle v'v' \rangle$ component. The spatial correlation $\rho$ is already high at $E = 250$ and
-barely changes. The encoder, therefore, captures the spatial pattern of the Reynolds stresses almost immediately, and the additional epochs mainly calibrate the fluctuation amplitude rather than relocate it. This behaviour can be highlighted when plotting the trajectory of the latent representation of the training window: 
+\autoref{fig: epoch_rst_comp} shows how the increase in epochs lowers the error in magnitude of the mean turbulent fluctuations, especially the transverse $\langle v'v' \rangle$ component. The spatial correlation $\rho$ is already high at $E = 250$ and barely changes. The encoder, therefore, captures the spatial pattern of the Reynolds stresses almost immediately, and the additional epochs mainly calibrate the fluctuation amplitude rather than relocate it. This behaviour can be highlighted when plotting the trajectory of the latent representation of the training window: 
 
 \begin{figure}[htp]
     \centering
@@ -796,12 +872,14 @@ barely changes. The encoder, therefore, captures the spatial pattern of the Reyn
     \label{fig: latent_epochs}
 \end{figure}
 
-\autoref{fig: latent_epochs} confirms this conclusion. It shows how all three initial encoded trajectories trace the same dominant shedding oscillation, so the spatial pattern is shared, but the lower-epoch $\mathcal{T}_z$ oscillates at a higher amplitude that seems to converge as the number of epochs increases. The extra epochs thus rescale the latent signal rather than reshape it; this rescaled amplitude then gets translated to physical space by $\psi_\theta$, explaining the drop in $\varepsilon$ at near-constant $\rho$. The higher-amplitude, smoother $E = 250$ trajectory also provides the simpler dynamical target for $f_\phi$, which is why it sustains the longest average rollout.
+\autoref{fig: latent_epochs} confirms this conclusion. It shows how all three initial encoded trajectories trace the same dominant shedding oscillation, so the spatial pattern is shared, but the lower-epoch $\mathcal{T}_z$ oscillates at a higher amplitude that seems to converge as the number of epochs increases. The extra epochs thus mainly rescale the latent signal rather than reshape it; the rescaled amplitude is then translated to physical space by $\psi_\theta$, explaining the drop in $\varepsilon$ at near-constant $\rho$. The higher-amplitude, smoother $E = 250$ trajectory also provides the simpler dynamical target for $f_\phi$, which is why it sustains the longest average rollout.
 
 \subsection{Physics weights}
 
 
 \subsection{NODE}
+\label{subsect: 4_node_params}
+
 \subsubsection{Group size}
 \subsubsection{Continuity penalty}
 
@@ -815,95 +893,3 @@ barely changes. The encoder, therefore, captures the spatial pattern of the Reyn
 
 
 
-
-% % -----------------------------------------------------------------------
-% \section{Autoencoder Reconstruction Quality}
-% \label{sect: 4_ae_results}
-% \todo{Put autoencoder reconstruction behaviour in appendix, focus on actuall changes in autoencoder architecture on the accuracy of the hybrid simulations}
-
-
-% \subsection{Reconstruction Error on Held-Out Snapshots}
-% \label{subsect: 4_ae_recon}
-% % Figure: side-by-side ground truth / reconstruction / |error| for a handful
-% % of test snapshots. From visualize_reconstructions().
-% % Table: MAE, correlation coefficient per channel, divergence residual, curl
-% % residual on the test split.
-
-% \subsection{Effect of Latent Dimension}
-% \label{subsect: 4_ae_latent}
-% % From your hpc_tune sweep. Plot recon_mae and divergence vs N_z for
-% % N_z ∈ {8, 16, 32, 64} or whatever you swept. Justify N_z = 16 as the
-% % knee of the curve.
-
-% \subsection{Effect of Batch Size}
-% \label{subsect: 4_ae_BS}
-
-
-% \subsection{Effect of Physics-Informed Loss Weights}
-% \label{subsect: 4_ae_phys_loss}
-% % λ_div, λ_curl sweep. Show that without them the reconstruction is still
-% % sharp but divergence-free is violated; with them, recon MAE rises slightly
-% % but div/curl drop by an order of magnitude. This is the empirical
-% % justification for the loss design in §3.3.2.
-
-% \subsection{Training Dynamics}
-% \label{subsect: 4_ae_training}
-% % From plot_losses(): train / val / test loss curves, correlation curves.
-% % One figure, brief discussion of convergence behaviour and any overfitting.
-
-% % -----------------------------------------------------------------------
-% \section{Neural ODE Latent Rollouts}
-% \label{sect: 4_node_results}
-
-% \subsection{Rollout Accuracy Against Encoded Ground Truth}
-% \label{subsect: 4_node_rollout}
-% % Per-dimension plot z_i(t) for ground truth vs NODE rollout, train region
-% % and test region clearly marked. The "extrapolation" plot. State the
-% % horizon at which rollout error crosses a threshold.
-
-% \subsection{Effect of Multiple-Shooting Parameters}
-% \label{subsect: 4_node_ms}
-% % Sweep over group_size ∈ {10, 15, 20, 30} and continuity_term ∈
-% % {100, 200, 400} (your sweep_node_retrain.jl grid). Plot rollout error
-% % (and possibly training stability) vs each. Justify group_size = 20,
-% % continuity_term = 200 from the data.
-
-
-% % -----------------------------------------------------------------------
-% \section{OOD Detector Calibration and Behaviour}
-% \label{sect: 4_ood_results}
-
-% \subsection{Threshold Calibration on Training Latents}
-% \label{subsect: 4_ood_threshold}
-% % Histogram of KNN distances on training latents, with the 99th-percentile
-% % threshold τ marked.
-
-
-% \subsection{Sensitivity to k and threshold}
-% \label{subsect: 4_ood_sensitivity}
-% % Brief: how the trigger rate during the hybrid loop changes with k and τ.
-
-% % -----------------------------------------------------------------------
-% \section{Generalisation}
-% \label{sect: 4_transfer}
-
-% % This is where TL1 / TL2 live. From the existing checkpoints
-% % TL1_E500_..., TL2_E300_..., and sweep_node_retrain.jl.
-
-% \subsection{Transfer to a Finer Simulation Mesh}
-% \label{subsect: 4_tl_re}
-% % Hybrid run at Re ≠ 2500 using TL1-fine-tuned AE. Show what fraction of
-% % training cost is recovered relative to training from scratch.
-
-% \subsection{Transfer to a Lower Reynolds Number}
-
-
-% % -----------------------------------------------------------------------
-% \section{Summary of Findings}
-% \label{sect: 4_summary}
-
-% % Short. One paragraph each on (i) end-to-end acceleration achieved,
-% % (ii) which design choices the ablations validated, (iii) which honest
-% % limitations are visible in the results (most likely: chaotic divergence
-% % in pointwise comparisons, fixed geometry, BC overhead, single Re without
-% % TL). The committee will look for this last paragraph.
