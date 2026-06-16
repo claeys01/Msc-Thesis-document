@@ -63,10 +63,10 @@ For the ML framework developed in this work, two fields from the WaterLily simul
 
 
 \subsection{Physical Setup}
-As mentioned before, WaterLily solves the incompressible NSE on a uniform Cartesian grid with a unit cell spacing $h=1$. The simulation operates in a non-dimensional fashion, where all geometric dimensions are non-dimensionalised through two reference scales: the characteristic length $L$, expressed as a number of grid cells, and a characteristic velocity $U$, derived from the imposed inflow velocity. These input parameters, together with the Reynolds number, can then be used to to define the kinematic viscosity: $\nu=\nicefrac{UL}{Re}$, and the convective time units: $t^*=\nicefrac{tU}{L}$. Next to these parameters, all spatial quantities in the solver are expressed in grid cells, and all velocities relative to $U$. Which means that the numerical solver carries no inherent physical units. 
+As mentioned before, WaterLily solves the incompressible NSE on a uniform Cartesian grid with a unit cell spacing $h=1$. The simulation operates in a non-dimensional fashion, where all geometric dimensions are non-dimensionalised through two reference scales: the characteristic length $L$, expressed as a number of grid cells, and a characteristic velocity $U$, derived from the imposed inflow velocity. These input parameters, together with the Reynolds number, can then be used to define the kinematic viscosity: $\nu=\nicefrac{UL}{Re}$, and the convective time units: $t^*=\nicefrac{tU}{L}$. Next to these parameters, all spatial quantities in the solver are expressed in grid cells, and all velocities relative to $U$. Which means that the numerical solver carries no inherent physical units. 
 
 
-The test case used to validate the model described in Section~\ref{sect: Framework Overview} consists of a two-dimensional flow past a stationary circular cylinder, which induces vortex shedding in its wake. The simulation consists of a square domain with the cylinder placed in the upstream quarter, where the cylinder geometry is defined by the signed distance function and enforced via the BDIM. The simulation parameters are summarised in Table~\ref{tab: parameters} and the domain is illustrated in in Figure~\ref{fig: domain_setup}.
+The test case used to validate the model described in Section~\ref{sect: Framework Overview} consists of a two-dimensional flow past a stationary circular cylinder, which induces vortex shedding in its wake. The simulation consists of a square domain with the cylinder placed in the upstream quarter, where the cylinder geometry is defined by the signed distance function and enforced via the BDIM. The simulation parameters are summarised in Table~\ref{tab: parameters} and the domain is illustrated in Figure~\ref{fig: domain_setup}.
 
 
 \begin{figure}[H]
@@ -130,33 +130,30 @@ The test case used to validate the model described in Section~\ref{sect: Framewo
     \end{minipage}
 \end{figure}
 
-A uniform free-stream velocity is imposed at the inflow, which acts as the characteristic velocity such that: $U = U_\infty$ and the cylinder diameter serves as the characteristic length scale, such that $L=d_c$. The domain uses the Biot-Savart boundary conditions \cite{BiotWeymouth2025b}, which replace the regular slip boundary conditions by a Biot-Savart integral over the vorticity inside the domain to determine the velocity at any point along the domain boundary. This allows the domain to be kept compact and square without introducing significant blockage effects. 
+A uniform free-stream velocity is imposed at the inflow, which acts as the characteristic velocity such that: $U = U_\infty$ and the cylinder diameter serves as the characteristic length scale, such that $L=d_c$. The domain uses the Biot-Savart boundary conditions \cite{BiotWeymouth2025}, which replace the regular slip boundary conditions by a Biot-Savart integral over the vorticity inside the domain to determine the velocity at any point along the domain boundary. This allows the domain to be kept compact and square without introducing significant blockage effects. 
 
 
-Since the primary objective of this work is to develop a framework that can capture, reconstruct and accelerate the underlying flow dynamics of any turbulent CFD simulation, rather than a specific experiment or flow case, no effort is made to match the simulation parameters to any real physical system. The simulation parameters were set to infer a desired shedding behaviour, which can be used to test the capabilities of the developed framework. \todo{mss op een andere plek plaatsen}
+Since the primary objective of this work is to develop a framework that can capture, reconstruct and accelerate the underlying flow dynamics of any turbulent CFD simulation, rather than a specific experiment or flow case, no effort is made to match the simulation parameters to any real physical system. The simulation parameters were set to infer a desired shedding behaviour, which can be used to test the capabilities of the developed framework.
 
 A Reynolds number of $Re=2500$ is selected for the validation simulation. At this Reynolds number, the flow exhibits well-defined periodic vortex shedding, characterised by the alternating release of counter-rotating vortices that form the well-recognisable Kármán vortex street. Additionally, the flow produces various ranges of temporal and spatial scales beyond the primary shedding frequency, which can be seen in the secondary vortex structures in the wake snapshots in \autoref{fig: vortex_shedding}.
 
 \begin{figure}[htbp]
     \centering
     \begin{subfigure}[b]{0.32\textwidth}
-        \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/shedding_t1.5.png}
+        \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/new_shedding_t5.0.png}
         \caption{$t^*_{n}$}
     \end{subfigure}
-    \hfill
     \begin{subfigure}[b]{0.32\textwidth}
-        \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/shedding_t2.5.png}
+        \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/new_shedding_t6.5.png}
         \caption{$t^*_{n+\Delta t}$}
     \end{subfigure}
-    \hfill
     \begin{subfigure}[b]{0.32\textwidth}
-        \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/shedding_t3.5.png}
+        \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/new_shedding_t8.0.png}
         \caption{$t^*_{n+ 2\Delta t}$}
     \end{subfigure}
     \caption{Vorticity field $\nicefrac{\omega L}{U}$ of three consecutive snapshots. Indicating positive (red) and negative (blue) vorticity. Showing the primary (large) and secondary (small) vortex structures in the wake}
     \label{fig: vortex_shedding}
 \end{figure}
-\todo{mss hele simulatie in appendix plaatsen}
 
 This makes $Re=2500$ an interesting test case for the surrogate model: the dominant shedding period provides a clear, learnable periodic structure, while the secondary flow features introduce complexity and nonlinearity. This challenges the data-driven approach and motivates the inclusion of physics-informed regularisation and transfer learning capabilities in the framework. Where a lower Reynolds number would produce various length and time scales in the wake, preventing the model from properly testing its ability to capture multi-scale dynamics. The presence of these additional structures can be seen when plotting the force coefficients over time in Figure~\ref{fig: 256_forces}. 
 
@@ -1129,48 +1126,3 @@ The network starts from a random state, and the epoch-0 prediction is nearly fla
 
 Following the logic in Figure~\ref{fig: retraining_logic}, after the neural ODE has been trained, the KNN integration monitor can be reconfigured using the new augmented trajectory $\boldsymbol{\mathcal{T}_u}$ in the same fashion as was displayed in \ref{alg: ood_knn}. After having finished this, the updated pipeline can be reassembled using the updated autoencoder ($\varphi_\theta^{(r+1)}$, $\psi_\theta^{(r+1)}$) and latent dynamics $f_\phi^{(r+1)}$. 
 
-
-% -----------------------------------------------------------------------
-\section{Evaluation Strategy}
-\label{sect: evaluation}
-
-% Define all experiments to ensure results in \autoref{chap: 4} are unambiguous and reproducible.
-
-\subsection{Accuracy Metrics}
-\label{sect: accuracy}
-
-% Field-level: mean absolute error, RMSE on velocity components.
-% Trajectory: rollout divergence over time, phase drift.
-% Physics consistency: divergence-free residual, force coefficient comparison.
-
-\subsection{Speedup Metrics}
-\label{sect: speedup}
-
-% Wall-clock time per simulation step (GPU vs.\ CPU).
-% Number of CFD solver calls replaced per unit simulation time.
-% Total throughput comparison.
-
-% -----------------------------------------------------------------------
-\section{Implementation Details}
-\label{sect: implementation}
-
-% Sufficient detail for full reproducibility.
-
-\subsection{Software Stack}
-\label{sect: software}
-
-% Julia, Lux (neural networks), OrdinaryDiffEq + DiffEqFlux (Neural ODE), Zygote (AD), JLD2 (checkpointing), CUDA/cuDNN (GPU).
-% Key package versions listed.
-
-\subsection{Hardware and HPC Configuration}
-\label{sect: hardware}
-
-% GPU hardware used for training; SLURM batch scripts for HPC runs.
-% Numerical precision: Float32 for all tensors; Float64 for ODE solver tolerances only.
-
-\subsection{Reproducibility}
-\label{sect: reproducibility}
-
-% Random seed fixed at 42 throughout.
-% Checkpoint strategy: best validation loss saved; retrain flag for resuming.
-% Data versioning and path conventions.
