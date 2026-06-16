@@ -1,4 +1,12 @@
 \chapter{Conclusion}
+\label{chap: conclusion}
+
+This work was to set out to find a method of lowering the computational cost of turbulent CFD simulations by replacing the most expensive part of the solver loop, the time integration of the discretised Navier--Stokes equations, with a less costly integration method. The central research question asked how effectively a Neural ODE can accelerate this time integration step without compromising accuracy. To answer it, a hybrid framework was built around the WaterLily solver: a convolutional autoencoder compresses the augmented flow state $(\mathbf{u}, \boldsymbol{\mu}_0^\epsilon)$ into a latent vector, a Neural ODE $f_\phi$ trained with multiple shooting advances that latent state in time, and a KNN out-of-distribution monitor decides at every step whether the latent rollout can be trusted or whether control should be handed back to the conventional solver. The framework was developed and tested on the canonical case of two-dimensional flow past a circular cylinder at a Reynolds number that was able to produce sufficiently chaotic flow ($Re=2500$)
+
+\section{Answering the Research Question}
+\label{sect: conclusion_rq}
+
+
 
 % defenitly say that an important motivation for retraining, is ensuring that the current simulation state is well represented in the training data, becuase if new data is gathered from the disjoint simulation state, retraining will have little effect if not enouhhh data is sampled. 
 
