@@ -1559,19 +1559,7 @@ isbn="978-3-540-27039-3"
   year         = {2024},
   note         = {Accessed: 2025-08-25}
 }
-@article{Go2023,
-   abstract = {In this study, a physics-informed neural network (PINN)-based surrogate model was proposed for a virtual thermal sensor (VTS) with real-time simulation. This surrogate model uses temperature data measured by a small number of physical temperature sensors to estimate the temperature field or the input heat flux in a non-sensored area. In particular, for real-time simulation, the measurement data are set as a direct input feature of the neural network with some modification of the partial differential equation (PDE) loss, and the output temperature over the non-sensored area is immediately predicted accordingly. To validate the performance of the proposed method, we solved three one- and two-dimensional problems. From the results, the proposed method could immediately predict the temperature field and the input heat flux with high accuracy. Moreover, it was found that the predicted temperature field and the input heat flux followed the trend of the ground truth well, even when noise was included in the measurement data. In particular, when an unknown heat flux is imposed, the temperature field and unknown heat flux can be predicted using measurement input data by training with multiple cases for the input heat flux.},
-   author = {Myeong Seok Go and Jae Hyuk Lim and Seungchul Lee},
-   doi = {10.1016/j.ijheatmasstransfer.2023.124392},
-   issn = {00179310},
-   journal = {International Journal of Heat and Mass Transfer},
-   keywords = {Heat conduction problem,Physics-informed neural network (PINN),Real-time simulation,Surrogate model,Virtual thermal sensor (VTS)},
-   month = {11},
-   publisher = {Elsevier Ltd},
-   title = {Physics-informed neural network-based surrogate model for a virtual thermal sensor with real-time simulation},
-   volume = {214},
-   year = {2023}
-}
+
 
 @article{Sholokhov2023,
    abstract = {Building reduced-order models (ROMs) is essential for efficient forecasting and control of complex dynamical systems. Recently, autoencoder-based methods for building such models have gained significant traction, but their demand for data limits their use when the data is scarce and expensive. We propose aiding a model’s training with the knowledge of physics using a collocation-based physics-informed loss term. Our innovation builds on ideas from classical collocation methods of numerical analysis to embed knowledge from a known equation into the latent-space dynamics of a ROM. We show that the addition of our physics-informed loss allows for exceptional data supply strategies that improves the performance of ROMs in data-scarce settings, where training high-quality data-driven models is impossible. Namely, for a problem of modeling a high-dimensional nonlinear PDE, our experiments show × 5 performance gains, measured by prediction error, in a low-data regime, × 10 performance gains in tasks of high-noise learning, × 100 gains in the efficiency of utilizing the latent-space dimension, and × 200 gains in tasks of far-out out-of-distribution forecasting relative to purely data-driven models. These improvements pave the way for broader adoption of network-based physics-informed ROMs in compressive sensing and control applications.},
@@ -1635,19 +1623,6 @@ isbn="978-3-540-27039-3"
     eprint = {https://pubs.aip.org/aip/pof/article-pdf/doi/10.1063/1.4928700/15691134/085107\_1\_online.pdf},
 }
 
-@article{Kurz2023,
-   abstract = {Over the last years, supervised learning (SL) has established itself as the state-of-the-art for data-driven turbulence modeling. In the SL paradigm, models are trained based on a dataset, which is typically computed a priori from a high-fidelity solution by applying the respective filter function, which separates the resolved and the unresolved flow scales. For implicitly filtered large eddy simulation (LES), this approach is infeasible, since here, the employed discretization itself acts as an implicit filter function. As a consequence, the exact filter form is generally not known and thus, the corresponding closure terms cannot be computed even if the full solution is available. The reinforcement learning (RL) paradigm can be used to avoid this inconsistency by training not on a previously obtained training dataset, but instead by interacting directly with the dynamical LES environment itself. This allows to incorporate the potentially complex implicit LES filter into the training process by design. In this work, we apply a reinforcement learning framework to find an optimal eddy-viscosity for implicitly filtered large eddy simulations of forced homogeneous isotropic turbulence. For this, we formulate the task of turbulence modeling as an RL task with a policy network based on convolutional neural networks that adapts the eddy-viscosity in LES dynamically in space and time based on the local flow state only. We demonstrate that the trained models can provide long-term stable simulations and that they outperform established analytical models in terms of accuracy. In addition, the models generalize well to other resolutions and discretizations. We thus demonstrate that RL can provide a framework for consistent, accurate and stable turbulence modeling especially for implicitly filtered LES.},
-   author = {Marius Kurz and Philipp Offenhäuser and Andrea Beck},
-   doi = {10.1016/j.ijheatfluidflow.2022.109094},
-   issn = {0142727X},
-   journal = {International Journal of Heat and Fluid Flow},
-   keywords = {Deep reinforcement learning,Large eddy simulation,Turbulence modeling},
-   month = {2},
-   publisher = {Elsevier B.V.},
-   title = {Deep reinforcement learning for turbulence modeling in large eddy simulations},
-   volume = {99},
-   year = {2023}
-}
 
 @article{Santurkar2019,
    abstract = {Batch Normalization (BatchNorm) is a widely adopted technique that enables faster and more stable training of deep neural networks (DNNs). Despite its pervasiveness, the exact reasons for BatchNorm's effectiveness are still poorly understood. The popular belief is that this effectiveness stems from controlling the change of the layers' input distributions during training to reduce the so-called "internal covariate shift". In this work, we demonstrate that such distributional stability of layer inputs has little to do with the success of BatchNorm. Instead, we uncover a more fundamental impact of BatchNorm on the training process: it makes the optimization landscape significantly smoother. This smoothness induces a more predictive and stable behavior of the gradients, allowing for faster training.},
@@ -1817,19 +1792,18 @@ ark = {ark:/44463/DelftBluePhase2}
    year = {2025}
 }
 
-@article{Glaws2020,
-   abstract = {As the size of turbulent flow simulations continues to grow, in situ data compression is becoming increasingly important for visualization, analysis, and restart checkpointing. For these applications, single-pass compression techniques with low computational and communication overhead are crucial. In this paper we present a deep-learning approach to in situ compression using an autoencoder architecture that is customized for three-dimensional turbulent flows and is well suited for contemporary heterogeneous computing resources. The autoencoder is compared against a recently introduced randomized single-pass singular value decomposition (SVD) for three different canonical turbulent flows: decaying homogeneous isotropic turbulence, a Taylor-Green vortex, and turbulent channel flow. Our proposed fully convolutional autoencoder architecture compresses turbulent flow snapshots by a factor of 64 with a single pass, allows for arbitrarily sized input fields, is cheaper to compute than the randomized single-pass SVD for typical simulation sizes, performs well on unseen flow configurations, and has been made publicly available. The results reported here show that the autoencoder dramatically outperforms a randomized single-pass SVD with similar compression ratio and yields comparable performance to a higher-rank decomposition with an order of magnitude less compression in regard to preserving a number of important statistical quantities such as turbulent kinetic energy, enstrophy, and Reynolds stresses.},
-   author = {Andrew Glaws and Ryan King and Michael Sprague},
-   doi = {10.1103/PhysRevFluids.5.114602},
-   issn = {2469990X},
-   issue = {11},
-   journal = {Physical Review Fluids},
-   month = {11},
-   publisher = {American Physical Society},
-   title = {Deep learning for in situ data compression of large turbulent flow simulations},
-   volume = {5},
-   year = {2020}
+@article{Margolin2006,
+   abstract = {Implicit large eddy simulation (ILES) is a methodology for modeling high Reynolds' number flows that combine computational efficiency and ease of implementation with predictive calculations and flexible application. Although ILES has been used for more than 15 years, it is only recently that significant effort has gone into providing a physical rationale that speaks to its capabilities and its limitations. In this article, we will present new theoretical results aimed toward building a justification for ILES. We will also compare ILES simulations of complex flows with data to illustrate practical aspects of the validation of our approach. © 2006 Taylor & Francis.},
+   author = {L. G. Margolin and W. J. Rider and F. F. Grinstein},
+   doi = {10.1080/14685240500331595},
+   issn = {14685248},
+   journal = {Journal of Turbulence},
+   pages = {1-27},
+   title = {Modeling turbulent flow with implicit LES},
+   volume = {7},
+   year = {2006}
 }
+
 
 @article{Glaws2020,
    abstract = {As the size of turbulent flow simulations continues to grow, in situ data compression is becoming increasingly important for visualization, analysis, and restart checkpointing. For these applications, single-pass compression techniques with low computational and communication overhead are crucial. In this paper we present a deep-learning approach to in situ compression using an autoencoder architecture that is customized for three-dimensional turbulent flows and is well suited for contemporary heterogeneous computing resources. The autoencoder is compared against a recently introduced randomized single-pass singular value decomposition (SVD) for three different canonical turbulent flows: decaying homogeneous isotropic turbulence, a Taylor-Green vortex, and turbulent channel flow. Our proposed fully convolutional autoencoder architecture compresses turbulent flow snapshots by a factor of 64 with a single pass, allows for arbitrarily sized input fields, is cheaper to compute than the randomized single-pass SVD for typical simulation sizes, performs well on unseen flow configurations, and has been made publicly available. The results reported here show that the autoencoder dramatically outperforms a randomized single-pass SVD with similar compression ratio and yields comparable performance to a higher-rank decomposition with an order of magnitude less compression in regard to preserving a number of important statistical quantities such as turbulent kinetic energy, enstrophy, and Reynolds stresses.},
