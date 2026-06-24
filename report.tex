@@ -10,10 +10,10 @@
 \usepackage{wrapfig}
 \usepackage{tcolorbox}
 \usepackage{nicefrac}
-\usepackage{pgfplots}
 \usepackage{lipsum}
 \usepackage{longtable}
 \usepackage{booktabs}
+\usepackage{helvet}   % optional, for the sans-serif look
 \usepackage{pdflscape}
 \usepackage{pgfplots} 
 \pgfplotsset{compat=1.18}
@@ -32,6 +32,15 @@
 \renewcommand{\bottomfraction}{0.9}
 \renewcommand{\textfraction}{0.05}
 \renewcommand{\floatpagefraction}{0.8}
+
+\renewcommand{\figureautorefname}{figure}
+\renewcommand{\tableautorefname}{table}
+\renewcommand{\equationautorefname}{equation}
+\renewcommand{\sectionautorefname}{section}
+\renewcommand{\subsectionautorefname}{section}
+\renewcommand{\subsubsectionautorefname}{section}
+\renewcommand{\appendixautorefname}{appendix}
+
 
 % defining colors for AE picture from PlotNeuralNet
 \def\ConvColor{rgb:yellow,5;red,2.5;white,5}
@@ -76,7 +85,8 @@
 \subject{Msc Thesis} % Cover only
 \affiliation{Delft University of Technology} % Cover only
 % \coverimage{figures/milad-fakurian-Qwtfx44pg-E-unsplash.jpg} % Aspect ratio of 2:3 (portrait) recommended
-\coverimage{figures/damien-de-gouveia-NVgXjWw89Pk-unsplash.jpg}
+% \coverimage{figures/damien-de-gouveia-NVgXjWw89Pk-unsplash.jpg}
+\coverimage{figures/k-ogPhzLAr4Is-unsplash.jpg}
 
 \definecolor{title}{HTML}{4884d6} % Color for cover title
 
@@ -84,13 +94,13 @@
 
 % \input{frontmatter/title-thesis}
 % \input{frontmatter/preface}
-% \input{frontmatter/summary}
+\input{frontmatter/summary}
 
 \tableofcontents
-% \listoffigures
-%\listoftables
+\listoffigures
+\listoftables
 
-% \input{frontmatter/nomenclature}
+\input{frontmatter/nomenclature}
 
 %% ----------------------------------------------------------------------
 %%    Mainmatter (Arabic page numbering)

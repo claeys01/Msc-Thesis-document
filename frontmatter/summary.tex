@@ -1,4 +1,74 @@
 \chapter*{Summary}
 \addcontentsline{toc}{chapter}{Summary}
 
-\emph{A summary...}
+% This thesis investigates how effectively a Neural Ordinary Differential Equation (NODE) can accelerate the time-integration step of an incompressible CFD solver without compromising the simulation's physical accuracy. In most mesh-based solvers, the time integration of the discretised Navier--Stokes equations is the most costly part of the solver loop, which makes it the natural target for acceleration.
+
+% A hybrid framework is developed around the WaterLily.jl solver~\cite{Weymouth2025}. A convolutional autoencoder compresses the augmented flow state $(\mathbf{u}, \boldsymbol{\mu}_0^\epsilon)$ into a low-dimensional latent vector $\mathbf{z} \in \mathbb{R}^{N_z}$, a Neural ODE $f_\phi$ advances that latent state in time, and the decoder reconstructs the velocity field that is re-injected into the solver. The autoencoder is trained with a physics-informed loss that combines an $L_1$ reconstruction term with divergence and vorticity penalties, so that the compressed state stays physically consistent. The Neural ODE is trained with multiple shooting to stabilise learning over the long rollouts needed to span several vortex-shedding cycles. A KNN out-of-distribution monitor gates the loop at runtime: it flags when a latent rollout drifts away from the training distribution and hands control back to WaterLily before the prediction becomes unreliable. The framework is developed and evaluated for two-dimensional flow past a circular cylinder at $Re = 2500$ on $256^2$ and $512^2$ grids, with a latent dimension $N_z = 16$.
+
+% The results show that the hybrid loop reproduces the quantities that matter most for the flow. On the finer grid, the time-averaged drag is recovered to within $0.64\%$ over the accelerated windows, the mean-flow and Reynolds-stress fields correlate with the reference at $\rho \geq 0.9966$, and only the lift fluctuation carries a visible rollout error. Once the networks are trained, the latent rollout integrates the flow more cheaply per step than the reference solver, giving an inference-loop speedup of $S_\text{loop} \approx 1.48$.
+
+% The central limitation is economic rather than physical. When the one-off cost of training the networks is charged to the comparison, the effective speedup per run drops to $S_\text{eff} \approx 0.07$, an order of magnitude slower than simply running WaterLily over the same window. The cost of the framework is therefore dominated by training, not by the accelerated integration. This cost can be recovered by reusing a trained pipeline across comparable runs, by trimming the training schedule or by overlapping training with the live simulation. The work thus demonstrates that latent Neural ODE rollouts can replace part of the conventional time integration without sacrificing accuracy, and identifies the training cost, rather than the inference loop, as the bottleneck that any practical speedup must overcome.
+
+
+The computational cost of accurate, high-fidelity CFD remains a bottleneck for
+turbulent flow simulations, and the time integration of the discretised
+Navier--Stokes equations is, in most mesh-based solvers, the most expensive part
+of the solver loop. This thesis investigates how effectively a Neural Ordinary
+Differential Equation (NODE) can accelerate that time-integration step without
+compromising the physical accuracy of the simulation.
+
+To answer this, a hybrid framework is developed around the WaterLily.jl
+solver~\cite{Weymouth2025}. A convolutional autoencoder provides the non-linear
+compression: the encoder $\varphi_\theta$ maps the augmented flow state
+$(\mathbf{u}, \boldsymbol{\mu}_0^\epsilon)$ onto a low-dimensional latent vector
+$\mathbf{z} \in \mathbb{R}^{N_z}$, and the decoder $\psi_\theta$ reconstructs the
+velocity field from that latent state. The autoencoder is trained with a
+physics-informed loss that combines an $L_1$ reconstruction term with divergence
+and vorticity penalties, so that the compressed representation stays physically
+consistent rather than merely visually faithful. A Neural ODE $f_\phi$ then learns
+the latent dynamics, advancing $\mathbf{z}$ in time so that the latent rollout
+replaces a sequence of conventional solver steps. The NODE is trained with multiple
+shooting, which partitions the trajectory into shorter segments and thereby
+stabilises learning over the long, chaotic rollouts needed to span several
+vortex-shedding cycles -- a regime in which direct single-shooting training is prone
+to gradient blow-up. Because a latent rollout is only trustworthy while it remains
+close to the dynamics it was trained on, a non-parametric KNN out-of-distribution
+monitor gates the loop at runtime: it measures the distance between the predicted
+latent vector and its nearest neighbours in the encoded training set, and when that
+distance exceeds a calibrated threshold $\tau$ it discards the prediction and hands
+control back to WaterLily, which re-stabilises the flow before the rollout resumes.
+When the monitor raises repeated flags, the NODE is retrained on the augmented
+trajectory set so that the pipeline can follow the flow as it evolves. The framework
+is developed and evaluated on two-dimensional flow past a circular cylinder at
+$Re = 2500$, on $256^2$ and $512^2$ grids with a latent dimension $N_z = 16$.
+
+The results show that the hybrid loop reproduces the quantities that matter most for
+the flow. On the finer grid, the time-averaged drag is recovered to within $0.64\%$
+over the accelerated windows, the mean-flow and Reynolds-stress fields correlate with
+the reference at $\rho \geq 0.9966$, and only the lift fluctuation carries a visible
+rollout error, reflecting a mild decay of its amplitude within each rollout. Once the
+networks are trained, the latent rollout integrates the flow far more cheaply per step
+than the reference solver, giving an inference-loop speedup of
+$S_\text{loop} \approx 1.48$.
+
+The central limitation is economic rather than physical. When the one-off cost of
+training the networks is charged to the comparison, the effective speedup of a single
+run drops to $S_\text{eff} \approx 0.07$, an order of magnitude slower than simply
+running WaterLily over the same window. The cost of the framework is therefore
+dominated by training, not by the accelerated integration: the inference loop is
+already cheaper than the reference, and that margin widens as the grid is refined. The
+parameter studies all point to the same underlying lever. Narrowing the latent
+bottleneck, shortening the training schedule, or tightening the multiple-shooting group
+each simplifies the dynamics the NODE must learn and so lengthens the average rollout,
+but at the cost of coarsening the reconstructed turbulence statistics; speed and
+physical fidelity are thus traded against one another, and the rollout monitor sets
+where on that trade the loop operates. The fixed training cost can be recovered by
+reusing a trained pipeline across comparable runs, by trimming the training schedule --
+which alone lifts $S_\text{eff}$ to $0.62$ on the finer grid -- or by overlapping
+training with the live simulation.
+
+This work therefore demonstrates that latent Neural ODE rollouts can replace part of
+the conventional time integration without sacrificing the accuracy of the integrated
+loading or the wake statistics, and identifies the training cost, rather than the
+inference loop, as the bottleneck that any practical deployment of the method must
+overcome.
