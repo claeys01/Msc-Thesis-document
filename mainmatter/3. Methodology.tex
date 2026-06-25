@@ -7,8 +7,7 @@ This chapter describes the full methodology used to develop and evaluate the mac
 \section{Framework Overview}
 \label{sect: Framework Overview}
 
-The framework developed in this thesis replaces the time integration of the discretised Navier--Stokes equations \eqref{eq: WaterLilyMomentum} with that of a low-dimensional latent state of said equations. 
-Profiling of the solver loop of the WaterLily simulation environment showed that the pressure projection and convection--diffusion routines are the most costly steps in the loop, and both scale with the total number of degrees of freedom $N_x N_y N_u$ \cite{Weymouth2025}. Across the three test cases reported (a Taylor--Green vortex, a sphere, and a moving cylinder), the pressure-Poisson projection accounts for roughly half of the per-step cost ($46$--$57\%$) and the convection--diffusion routine for a further $22$--$31\%$, so the two routines together dominate the time-stepping loop. Compressing the flow state to a latent vector of dimension $N_z \ll N_x N_y N_u$ and integrating it in time with a learned ODE offers a direct route to acceleration, provided that the latent state captures the relevant dynamics and that the surrogate model is used during regimes where it can be trusted. Figure~\ref{fig: framework_overview} shows the ML pipeline, referred to as $\mathcal{P}$ in this work, that is developed in this work. 
+The framework developed in this thesis replaces the time integration of the discretised Navier--Stokes equations \eqref{eq: WaterLilyMomentum} with that of a low-dimensional latent state of said equations. Profiling of the solver loop of the WaterLily simulation environment showed that the pressure projection and convection--diffusion routines are the most costly steps in the loop, and both scale with the total number of degrees of freedom $N_x N_y N_u$ \cite{Weymouth2025}. Across the three test cases reported (a Taylor--Green vortex, a sphere, and a moving cylinder), the pressure-Poisson projection accounts for roughly half of the per-step cost ($46$--$57\%$) and the convection--diffusion routine for a further $22$--$31\%$, so the two routines together dominate the time-stepping loop. Compressing the flow state to a latent vector of dimension $N_z \ll N_x N_y N_u$ and integrating it in time with a learned ODE offers a direct route to acceleration, provided that the latent state captures the relevant dynamics and that the surrogate model is used during regimes where it can be trusted. Figure~\ref{fig: framework_overview} shows the ML pipeline, referred to as $\mathcal{P}$ in this work, that is developed in this work. 
 
 \begin{figure}[H]
     \centering
@@ -135,27 +134,11 @@ The test case used to validate the model described in \autoref{sect: Framework O
 
 A uniform free-stream velocity is imposed at the inflow, which acts as the characteristic velocity such that: $U = U_\infty$ and the cylinder diameter serves as the characteristic length scale, such that $L=d_c$. The domain uses the Biot-Savart boundary conditions \cite{BiotWeymouth2025}, which replace the regular slip boundary conditions by a Biot-Savart integral over the vorticity inside the domain to determine the velocity at any point along the domain boundary. This allows the domain to be kept compact and square without introducing significant blockage effects. 
 
-
 Since the primary objective of this work is to develop a framework that can capture, reconstruct and accelerate the underlying flow dynamics of any unsteady CFD simulation, rather than a specific experiment or flow case, no effort is made to match the simulation parameters to any real physical system. The simulation parameters were set to infer a desired shedding behaviour, which can be used to test the capabilities of the developed framework.
-
 
 A Reynolds number of $Re=2500$ is selected as the base case for developing the framework. All snapshots used to train the ML components of $\mathcal{P}$ are drawn from this simulation, and the accelerated framework is validated against it in its in-distribution regime; the generalisation of the trained $\mathcal{P}$ to various Reynolds numbers is performed in \autoref{sect: 4_generalization}. At this Reynolds number, the flow exhibits well-defined periodic vortex shedding, characterised by the alternating release of counter-rotating vortices that form the well-recognisable Kármán vortex street. Additionally, the flow produces various ranges of temporal and spatial scales beyond the primary shedding frequency, which can be seen in the secondary vortex structures in the wake snapshots in \autoref{fig: vortex_shedding}.
 
-\begin{figure}[htbp]
-    \centering
-    % \begin{subfigure}[b]{0.32\textwidth}
-    %     \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/new_shedding_t5.0.png}
-    %     \caption{$t^*_{n}$}
-    % \end{subfigure}
-    % \begin{subfigure}[b]{0.32\textwidth}
-    %     \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/new_shedding_t6.5.png}
-    %     \caption{$t^*_{n+\Delta t}$}
-    % \end{subfigure}
-    % \begin{subfigure}[b]{0.32\textwidth}
-    %     \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/new_shedding_t8.0.png}
-    %     \caption{$t^*_{n+ 2\Delta t}$}
-    % \end{subfigure}
-
+\begin{figure}[H]
     \centering
     \begin{subfigure}[b]{0.19\textwidth}
         \includegraphics[width=\textwidth]{figures/Methodology/vortex_shedding/new_shedding_t5.0.png}
@@ -397,7 +380,7 @@ An illustrative overview of the autoencoder architecture with these hyperparamet
 
 The encoder consists of $n_\text{conv}$ stacked compression blocks, followed by a sequence of $n_\text{dense}$ fully connected layers that project the flattened feature maps onto the latent vector $\mathbf{z} \in \mathbb{R}^{N_z}$. Each compression block applies, in order, a 2D convolution with kernel size $k$ and stride $s$, a batch-normalisation layer, a ReLU activation, and a $p \times p$ max-pooling operation. Same padding is used in every convolution so that spatial resolution is reduced only by the pooling step. The convolution extracts local spatial features from the instantaneous flow state, and batch normalisation stabilises the input distribution of the layer across a mini-batch. Batch normalisation stabilises training by smoothing the loss landscape, scaling and shifting the layer inputs using trainable parameters to preserve model expressivity \cite{Santurkar2019}, thereby allowing larger learning rates and reducing sensitivity to weight initialisation. ReLU introduces the non-linearity to represent the flow states in a low-dimensional latent space. 
 % \todo{change figure and remove batch norm from the first layer}
-\begin{figure}[h]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/Methodology/encoder.pdf}
     \caption{Example encoder architecture with $n_\text{conv}=6$, $p=2$, $k=3$, $C_\text{in}=4$ and $C_\text{base}=8$. The colour coding for each layer is:
@@ -603,9 +586,7 @@ After having trained the autoencoder, each instantaneous flow field can be compr
 \end{equation}
 
 
-Where $N_T$ represents the total number of ground truth trajectories of the same system, $n_{t, i}$ and  $t_{0, i}$ denote the training trajectory length and the start time of a specific trajectory $i$, respectively, and $t_{\text{train},i}=n_{t,i}\,\Delta t$ is the corresponding trajectory duration in physical time. For brevity we denote the full collection of $N_T$ training trajectories by $\boldsymbol{\mathcal{T}}_u \equiv \{\mathcal{T}_{u,i}\}_{i=1}^{N_T}$ and its latent image by $\boldsymbol{\mathcal{T}}_z = \varphi_\theta(\boldsymbol{\mathcal{T}}_u) 
-\equiv \{\mathcal{T}_{z,i}\}_{i=1}^{N_T}$. An example of these resulting latent trajectories is shown in figure~\ref{fig: latent_traj} for four representative components. The latent trajectories typically consist of one or more dominant modes, such as $z_1$ and $z_4$, which exhibit a clear period behaviour that corresponds to vortex shedding frequency visible in the force history of \autoref{fig: 256_forces}. Less dominant modes such as $z_4$ and $z_{12}$ carry lower amplitudes and contain more complex frequency content that correspond to secondary vortex structures and irregular frequencies visible in figures \ref{fig: vortex_shedding} and \ref{fig: 256_forces} respectively. 
-
+Where $N_T$ represents the total number of ground truth trajectories of the same system, $n_{t, i}$ and  $t_{0, i}$ denote the training trajectory length and the start time of a specific trajectory $i$, respectively, and $t_{\text{train},i}=n_{t,i}\,\Delta t$ is the corresponding trajectory duration in physical time. For brevity we denote the full collection of $N_T$ training trajectories by $\boldsymbol{\mathcal{T}}_u \equiv \{\mathcal{T}_{u,i}\}_{i=1}^{N_T}$ and its latent image by $\boldsymbol{\mathcal{T}}_z = \varphi_\theta(\boldsymbol{\mathcal{T}}_u) \equiv \{\mathcal{T}_{z,i}\}_{i=1}^{N_T}$. An example of these resulting latent trajectories is shown in \autoref{fig: latent_traj} for four representative components. The latent trajectories typically consist of one or more dominant modes, such as $z_1$ and $z_4$, which exhibit a clear period behaviour that corresponds to vortex shedding frequency visible in the force history of \autoref{fig: 256_forces}. Less dominant modes such as $z_4$ and $z_{12}$ carry lower amplitudes and contain more complex frequency content that correspond to secondary vortex structures and irregular frequencies visible in \autoref{fig: vortex_shedding} and \ref{fig: 256_forces} respectively. 
 
 \begin{figure}[H]
     \centering
@@ -620,13 +601,13 @@ The neural ODE is tasked with learning the dynamics of this trajectory so it can
     \frac{d\mathbf{z}(t)}{dt} = f_\phi(\mathbf{z}(t)), \qquad \mathbf{z}(t_0) = \varphi_\theta(\mathbf{x}_\text{in}(t_0)).
 \end{equation}
 
-In \ref{eq: latent_NODE} $f_\phi$ is a neural network with trainable parameters $\phi$. Given an initial condition $\mathbf{z}(t_0)$, a conventional time integrator can be used to find the latent state $\tilde{\mathbf{z}}(t)$ at any desired time $t$. This means that, for the neural ode defined above, a predicted latent trajectory can be produced that is analogous to the ground-truth trajectory in \ref{eq: latent_traj} and starts at the same initial condition \cite{Nair2024}. 
+In \autoref{eq: latent_NODE} $f_\phi$ is a neural network with trainable parameters $\phi$. Given an initial condition $\mathbf{z}(t_0)$, a conventional time integrator can be used to find the latent state $\tilde{\mathbf{z}}(t)$ at any desired time $t$. This means that, for the neural ODE defined above, a predicted latent trajectory can be produced that is analogous to the ground-truth trajectory in \autoref{eq: latent_traj} and starts at the same initial condition \cite{Nair2024}. 
 
 \begin{equation}\label{eq: latent_traj_pred}
     \tilde{\mathcal{T}}_{z,i} = [\tilde{\mathbf{z}}(t_{0,i}),\, \tilde{\mathbf{z}}(t_{0,i} + \Delta t),\, \tilde{\mathbf{z}}(t_{0,i} + 2\Delta t),\, \ldots,\, \tilde{\mathbf{z}}((t_{0,i} + t_{\text{train}, i})], \quad i = 1, \ldots, N_T, \quad t_{\text{train}, i} = n_{t,i}\Delta t
 \end{equation}
 
-Because $N_z \ll N_x N_y N_u$, the time integration operates on a low-dimensional ODE rather than the original discretised Navier-Stokes system, making both training and inference computationally inexpensive. The following subsections highlight the architecture of $f_\phi$, the multiple-shooting training strategy used to stabilise learning over long trajectories, and the validation procedure applied to the resulting latent dynamics model.
+Because $N_z \ll N_x N_y N_u$, the time integration operates on a low-dimensional ODE rather than the original discretised Navier-Stokes system, making both neural ODE training and inference computationally inexpensive. The following subsections highlight the architecture of $f_\phi$, the multiple-shooting training strategy used to stabilise learning over long trajectories, and the validation procedure applied to the resulting latent dynamics model.
 
 
 \subsection{Architecture}
@@ -655,22 +636,22 @@ The parameters $\phi$ of the feed-forward network $f_\phi$ in the neural ODE are
     \mathcal{L}_{\text{NODE}} = \left\langle \frac{1}{n_{t}} \sum_{j=1}^{n_{t}} \left\| \mathbf{z}(t_{0} + j\Delta t) - \tilde{\mathbf{z}}(t_{0} + j\Delta t) \right\|_2^2 \right\rangle
 \end{equation}
 
-Where $\langle \cdot \rangle$ denotes the average over all available training trajectories $N_T$ and the inner sum accumulates the per-snapshot reconstruction error. Training the neural ODE by directly minimising~\eqref{eq: node_loss_naive} requires integrating the full latent trajectory from a single initial condition $\tilde{\mathbf{z}}(t_{0,i})$ and back-propagating through the entire rollout is conceptually the simplest approach. It fails reliably over longer rollouts required to capture a sufficient number of shedding cycles in the regime considered here.
+Where $\langle \cdot \rangle$ denotes the average over all available training trajectories $N_T$ and the inner sum accumulates the per-snapshot reconstruction error. Training the neural ODE by directly minimising \autoref{eq: node_loss_naive} requires integrating the full latent trajectory from a single initial condition $\tilde{\mathbf{z}}(t_{0,i})$ and backpropagating through the entire rollout; this is conceptually the simplest approach. It fails reliably over longer rollouts required to capture a sufficient number of shedding cycles in the regime considered here.
 
-This approach, called single shooting, fails because the optimiser must simultaneously select parameters $\phi$ that fit the predicted trajectory to every snapshot along its full length~\cite{Turan2022}. For oscillatory problems or long rollouts, this is a difficult optimisation problem with many local minima. Additionally, neural networks exhibit a spectral bias during gradient descent training, leading to the fact that low-frequency components of the target function are learned more easily than high-frequency ones \cite{Rahaman2019}. 
+This approach, called single shooting, fails because the optimiser must simultaneously select parameters $\phi$ that fit the predicted trajectory to every snapshot along its full length~\cite{Turan2022}. For oscillatory problems or long rollouts, this is a difficult optimisation problem with many local minima. Additionally, neural networks exhibit a spectral bias during gradient-descent training, such that low-frequency components of the target function are learned more easily than high-frequency ones \cite{Rahaman2019}. 
 
-\begin{figure}[htp]
+\begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{figures/Methodology/trajectories.pdf}
+    \includegraphics[width=.925\linewidth]{figures/Methodology/trajectories.pdf}
     \caption{Single-shooting training of the neural ODE on a representative latent trajectory at $\mathrm{Re} = 2500$, displaying 4 latent components. Illustrating the failure mode single-shooting suffers from during long rollouts}
     \label{fig: singleshoot}
 \end{figure}
 
 Figure~\ref{fig: singleshoot} shows how the learned latent trajectory gets stuck learning the complex, multi-frequency latent dynamics when operating in a single-shooting fashion. 
 
-To avoid this failure mode of the single shooting, the neural ODE is trained using \emph{multiple shooting}, a method originally developed for boundary-value problems in numerical analysis~\cite{Bock1984} and adapted to neural ODEs by~\textcite{Turan2022}. The central idea is to replace the single, long integration required by single-shooting with several short, independent integrations whose endpoints are constrained to overlap. A specific trajectory $\mathcal{T}_{z, i}$, spanning $[t_{0},\, t_{\text{train}}]$, is partitioned into $N_{s}+1$ shorter intervals by introducing a grid of shooting points $t_{0} = \tau_0 < \tau_1 < \dots < \tau_{N_{s}} = t_\text{train} $, where each shooting group exists of $n_s$ samples of $\mathcal{T}_{z, i}$. At each interval, the neural ODE is integrated as an independent initial-value problem, with its initial condition treated as an additional optimisation variable. Figure \ref{fig: multiple_shoot_example} shows how the trajectory $\tilde{\mathcal{T}}_{z, i}$ is therefore allowed to be discontinuous across interval boundaries during training, and the resulting shooting gaps. 
+To avoid this single-shooting failure mode, the neural ODE is trained using \emph{multiple shooting}, a method originally developed for boundary-value problems in numerical analysis~\cite{Bock1984} and later adapted to neural ODEs by~\textcite{Turan2022}. The central idea is to replace the single, long integration required by single-shooting with several short, independent integrations whose endpoints are constrained to overlap. A specific trajectory $\mathcal{T}_{z, i}$, spanning $[t_{0},\, t_{\text{train}}]$, is partitioned into $N_{s}+1$ shorter intervals by introducing a grid of shooting points $t_{0} = \tau_0 < \tau_1 < \dots < \tau_{N_{s}} = t_\text{train} $, where each shooting group exists of $n_s$ samples of $\mathcal{T}_{z, i}$. At each interval, the neural ODE is integrated as an independent initial-value problem, with its initial condition treated as an additional optimisation variable. \autoref{fig: multiple_shoot_example} shows how the trajectory $\tilde{\mathcal{T}}_{z, i}$ is therefore allowed to be discontinuous across interval boundaries during training, and the resulting shooting gaps. 
 
-\begin{figure}[htp]
+\begin{figure}[htbp]
     \centering
     \input{figures/Methodology/tikz_figures/multiple_shooting}
     \caption{Multiple shooting schematic, showing the shooting gaps that need to be minimised during training, adapted from \textcite{Turan2022}}
@@ -696,9 +677,9 @@ Supervised learning of neural networks is typically performed by optimising an u
       \right\rangle ,
 \end{equation}
 
-The first term is a cost function similar to \ref{eq: node_loss_naive}, but instead of calculating the loss over each sample in the trajectory, this term is a per-segment fit that is summed over all segments and their $n_s$ latent vectors. The second term is the \emph{continuity penalty}, weighted by $\lambda_c$, that drives the shooting gaps in~\eqref{eq: shooting_constraint} toward zero. The continuity weight $\lambda_c$ controls the trade-off between segment-wise accuracy and global trajectory coherence. It is typically set to a large value to ensure continuity, but remains a hyperparameter that needs to be tuned, as a too-large $\lambda_c$ can cause numerical issues, while a too-small $\lambda_c$ can lead to constraint violation. 
+The first term is a cost function similar to \ref{eq: node_loss_naive}, but instead of computing the loss for each sample in the trajectory, it is a per-segment fit summed over all segments and their $n_s$ latent vectors. The second term is the \emph{continuity penalty}, weighted by $\lambda_c$, that drives the shooting gaps in \autoref{eq: shooting_constraint} toward zero. The continuity weight $\lambda_c$ controls the trade-off between segment-wise accuracy and global trajectory coherence. It is typically set to a large value to ensure continuity, but remains a hyperparameter that needs to be tuned, as a too-large $\lambda_c$ can cause numerical issues, while a too-small $\lambda_c$ can lead to constraint violation. 
 
-In practice, the implementation of \textcite{Turan2022} that is available in \texttt{DiffEqFlux.jl} was used in this work, in which the shooting initial conditions $\tilde{\mathbf{z}}^{(s)}_0$ are not free variables but are pinned to the ground-truth latents $\mathbf{z}^{(s)}_0$ at every iteration.  The continuity penalty in~\eqref{eq: node_loss_ms} therefore acts between the integrated endpoint $\tilde{\mathbf{z}}^{(s)}_f$ of segment $s$ and the data initial condition $\mathbf{z}^{(s+1)}_0$ of segment $s{+}1$. Figure~\ref{fig: ms_epochs} shows how the segments are fitted to the ground truth latent trajectories. 
+In practice, the implementation of \textcite{Turan2022} that is available in \texttt{DiffEqFlux.jl} was used in this work, in which the shooting initial conditions $\tilde{\mathbf{z}}^{(s)}_0$ are not free variables but are pinned to the ground-truth latents $\mathbf{z}^{(s)}_0$ at every iteration.  The continuity penalty in~\eqref{eq: node_loss_ms} therefore acts between the integrated endpoint $\tilde{\mathbf{z}}^{(s)}_f$ of segment $s$ and the data initial condition $\mathbf{z}^{(s+1)}_0$ of segment $s{+}1$. \autoref{fig: ms_epochs} shows how the segments are fitted to the ground truth latent trajectories. 
 
 
 \begin{figure}[htbp]
@@ -736,23 +717,6 @@ In practice, the implementation of \textcite{Turan2022} that is available in \te
     \label{fig: ms_epochs}
 \end{figure}
 
-% \todo{show rollout plot over longer horizon to show drifting of NODE}
-
-
-% Multiple shooting: group_size = 20, continuity_term = 200.
-% Optimizer: AdamW, η = 0.01; maxiters = 250.
-% Explain why multiple shooting mitigates gradient vanishing in long-horizon trajectories.
-% Extrapolation flag and its role.
-
-% \subsection{Validation strategy}
-% \label{sect: NODEvalidation}
-
-% \todo{begin as soon as delftblue is up and running again.}
-% show influence of epochs on rollout accuracy, show influence of group size, 
-
-% Short- and long-horizon rollout error on held-out latent trajectories.
-% Comparison against trivial baselines (e.g., last-state extrapolation, linear interpolation).
-% Validate latent trajectory quality against AE-encoded ground truth.
 
 % -----------------------------------------------------------------------
 \section{Integration Monitoring}
@@ -760,7 +724,7 @@ In practice, the implementation of \textcite{Turan2022} that is available in \te
 
 Like other autoregressive surrogates, neural ODEs tend to struggle with the effects of accumulating error during inference outside of the training timespan \cite{Lippe2023}. This means that the trained latent dynamics $f_\phi$ cannot be trusted indefinitely. Over a long enough rollout, the predicted state $\tilde{\mathbf{z}}$ will drift away from the ground-truth trajectory $\mathbf{z}$, and no amount of additional training removes this entirely. Because we want to integrate in the latent space for as long as possible to achieve the maximum speedup, there needs to be a way for the surrogate model to check whether its current prediction can still be trusted, and a fallback mechanism for when it cannot. Since $\mathcal{P}$ is trained in situ, we can't compare the rollout prediction accuracy to a saved ground truth, so we need to compare a new prediction to available data. 
 
-\begin{figure}
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/Methodology/node_rollout_vs_gt.pdf}
     \caption{Latent dynamics of the trained Neural ODE over the full simulation window, shown for four representative components $z_i$. Encoded ground truth (solid) is compared against a single NODE rollout (dashed) integrated from $t^*=0$. Showing how the rollout holds phase and amplitude inside the train/validation region (green) but drifts in the test region (pink), motivating a runtime monitor on the rollout quality.}
@@ -777,7 +741,7 @@ This means that statistics of the training data need to be used to monitor the r
 \subsection{KNN-Based OOD Scoring}
 \label{sect: KNN}
 
-The $k$-nearest-neighbour score is computed in two stages. First, after training, the encoded training snapshots $\boldsymbol{\mathcal{T}}_{z}$ are L2-normalised and stored in a KD-tree, which allows efficient computation of the KNN distance; secondly, the KD tree is used to query the distance to the k nearest neighbour of the newly predicted latent vector $\tilde{\mathbf{z}}$, shown in the pseudocode below in algorithm~\ref{alg: ood_knn}, following the method proposed by \textcite{Sun2022}.
+The $k$-nearest-neighbour score is computed in two stages. First, after training, the encoded training snapshots $\boldsymbol{\mathcal{T}}_{z}$ are L2-normalised and stored in a KD-tree, which allows efficient computation of the KNN distance; secondly, the KD tree is used to query the distance to the k nearest neighbour of the newly predicted latent vector $\tilde{\mathbf{z}}$, shown in the pseudocode below in \autoref{alg: ood_knn}, following the method proposed by \textcite{Sun2022}.
 
 \begin{algorithm}[H]
 \SetAlgoLined
@@ -797,7 +761,7 @@ Compute the distance to the $k$-th neighbour: $d_k(\tilde{\mathbf{z}}^{(n)}) \ge
 \Return $\mathbf{1}\{\,d_k(\tilde{\mathbf{z}}^{(n)}) \geq \tau\,\}$
 \end{algorithm}
 
-The $\ell_2$-normalisation in the KNN OOD algorithm ensures a uniform rescaling of the latent vectors such that modes with dominant amplitudes, like $z_1$ and $z_8$ visible in figure~\ref{fig: latent_traj}, would not dominate the OOD score. Without normalisation, the Euclidean distance would be dominated by the large-amplitude modes, and the OOD score would be insensitive to drift in the components that encode the secondary vortical structures. Geometrically, dividing each latent vector by its norm projects the training data onto the unit hypersphere, the set of points lying a unit distance from the origin in the $N_z$-dimensional latent space, so the nearest-neighbour distances compare the directions of the latent states across normalized length rather than their overall magnitudes.
+The $\ell_2$-normalisation in the KNN OOD algorithm ensures a uniform rescaling of the latent vectors such that modes with dominant amplitudes, like $z_1$ and $z_8$ visible in \autoref{fig: latent_traj}, would not dominate the OOD score. Without normalisation, the Euclidean distance would be dominated by the large-amplitude modes, and the OOD score would be insensitive to drift in the components that encode the secondary vortical structures. Geometrically, dividing each latent vector by its norm projects the training data onto the unit hypersphere, the set of points at unit distance from the origin in the $N_z$-dimensional latent space, so the nearest-neighbour distances compare the directions of the latent states along normalised lengths rather than their overall magnitudes.
 
 % \todo{say that the latent training data gets projected on the n dimensional hypersphere}
 
@@ -810,13 +774,13 @@ The OOD detection effectively returns the distance $k$-th nearest training neigh
     \label{fig: KNN_rollout}
 \end{figure}
 
-Figure~\ref{fig: KNN_rollout} shows the KNN score of the ground-truth latent trajectory compared to that of the neural ODE rollout. The shedding frequency is again visible in both signals. The rollout score (blue) tracks the ground truth closely while inside the training window, but begins to diverge shortly after $t^* \approx 18$, crosses $\tau$ near $t^* \approx 20$, and remains well above it for the remainder of the rollout. This confirms that the neural ODE captures the underlying latent dynamics accurately enough to extrapolate beyond the training horizon for a limited time, but that its predictions must be monitored if the reconstructed full-order state is to remain physically consistent.
+\autoref{fig: KNN_rollout} shows the KNN score of the ground-truth latent trajectory compared to that of the neural ODE rollout. The shedding frequency is again visible in both signals. The rollout score (blue) tracks the ground truth closely while inside the training window, but begins to diverge shortly after $t^* \approx 18$, crosses $\tau$ near $t^* \approx 20$, and remains well above it for the remainder of the rollout. This confirms that the neural ODE captures the underlying latent dynamics accurately enough to extrapolate beyond the training horizon for a limited time, but that its predictions must be monitored to ensure the reconstructed full-order state remains physically consistent.
 
 
 \subsection{Fallback Strategy}
 \label{sect: fallback}
 
-Using the KNN score from \autoref{sect: KNN}to decide, at every prediction attempt, whether the latent rollout produced by $f_\phi$ can still be trusted or whether the conventional WaterLily solver should resume time integration. Whenever $d_k(\tilde{\mathbf{z}}^{(n)}) \geq \tau$, the predicted latent state is discarded and the CFD solver advances the flow field $\mathbf{u}$ from its last accepted state to stabilise the hybrid simulation again. The KNN-OOD is also used to check whether the newly encoded data from the encoder is similar to the samples in the latent trajectories used during training, serving as a monitor of autoencoder accuracy as well. A pseudocode example of the implemented fallback strategy is displayed in \autoref{alg: predict_flex} below. 
+Using the KNN score from \autoref{sect: KNN}to decide, at every prediction attempt, whether the latent rollout produced by $f_\phi$ can still be trusted or whether the conventional WaterLily solver should resume time integration. Whenever $d_k(\tilde{\mathbf{z}}^{(n)}) \geq \tau$, the predicted latent state is discarded and the CFD solver advances the flow field $\mathbf{u}$ from its last accepted state to stabilise the hybrid simulation again. The KNN-OOD is also used to assess whether the newly encoded data from the encoder are similar to the samples in the latent trajectories used during training, thereby serving as a monitor of autoencoder accuracy. A pseudocode example of the implemented fallback strategy is displayed in \autoref{alg: predict_flex} below. 
 
 \begin{algorithm}[H]
 \SetAlgoLined
@@ -866,24 +830,64 @@ It is important to note that when the OOD flag is triggered, the latent neural O
 \section{Integrated Acceleration Workflow}
 \label{sect: acc_workflow}
 
-Having introduced and motivated the three trained components of the framework in sections ~\ref{sect: AE}--\ref{sect: OOD}, we are now ready to link these components into a single inference loop that runs alongside the WaterLily solver to accelerate it via cheaper latent-space updates. The autoencoder, neural ODE and integration monitor remain the same as in their training definitions and can now be applied inside a hybrid runtime that decides, at every step, whether the next state is advanced by WaterLily or by the latent dynamics $f_\phi$. 
+Having introduced and motivated the three trained components of the framework in sections ~\ref{sect: AE}--\ref{sect: OOD}, we are now ready to link these components into a single inference loop that runs alongside the WaterLily solver to accelerate it via cheaper latent-space updates. The autoencoder, neural ODE, and integration monitor remain the same as in their training definitions and can now be applied within a hybrid runtime that, at every step, decides whether the next state is advanced by WaterLily or by the latent dynamics $f_\phi$. 
 
-\begin{figure}[H]
+\subsection{Execution modes}
+\label{subsect: execution_model}
+
+A single hybrid run consists of 4 distinct phases. The simulation begins with the initial data-collection phase, in which WaterLily runs as usual from $t^*_0$ to $t^*_\text{train}$. During the initial data-collection phase, relevant snapshots are sampled to populate the training data for the autoencoder and the neural ODE. Following this, the \emph{training} phase begins at $t^*_\text{train}$, during which $\varphi_\theta$, $\psi_\theta$, $f_\phi$ and the KNN reference set $\mathcal{K}$ are constructed. Once training is finished, the trained components are handed off to the simulation environment, and the \emph{hybrid loop} phase begins, in which CFD time-stepping is alternated with the latent neural ODE. If the KNN OOD monitor has repeatedly flagged a drift outside of the training distribution during this phase, the simulation enters the \emph{retraining} phase, where $\mathcal{P}$ quits rolling out in the latent space, WaterLily resumes for a short time, and more snapshots are sampled to use as new data to retrain both networks on the augmented dataset before the hybrid loop is rejoined.
+
+These four phases define \emph{what} is computed, but not \emph{how} they are mapped onto computational resources in wall time. Two execution models are possible: a \emph{parallel} model, in which network training overlaps the running solver and which represents the intended deployment of the framework, and a \emph{serial} model, in which every phase executes sequentially on a single lane. 
+
+
+\subsubsection{Parallel execution}
+\label{subsect: parallel_exec}
+In the parallel execution model, illustrated in \autoref{fig: workflow_parallel}, the WaterLily solver and the training procedure of $\mathcal{P} = (\varphi_\theta, \psi_\theta, f_\phi, \mathcal{K}, \tau)$ run in parallel to each other and advance on their own time. This means that during the initial data-collection phase, WaterLily advances $\mathcal{S}$ from $t^*_0$ to $t^*_\text{train}$ and harvests the initial training data as usual. Once the training phase begins, however, the solver does not pause: the conventional time integration continues while $\varphi_\theta$, $\psi_\theta$, $f_\phi$ and the KNN reference set $\mathcal{K}$ are constructed in parallel. The fitted pipeline is then handed off to the running simulation at $t^*_\text{handoff}$. The same methodology governs retraining: when the flag count reaches $n_\text{max,flags}$, WaterLily keeps advancing the flow and sampling snapshots while both networks are refitted concurrently on the augmented dataset, and the updated components are injected before the hybrid loop is rejoined.
+
+\begin{figure}[htbp]
     \centering
     \input{figures/Methodology/tikz_figures/hybrid_workflow}
     % \includegraphics[width=0.5\linewidth]{}
-    \caption{Schematic of the hybrid solver timeline. After a warmup and an initial training phase, the loop alternates between conventional WaterLily steps ($\mathcal{S}$) and NODE rollouts; a rollout is accepted until the KNN score exceeds $\tau$ or the switching cadence $n_\text{switch}$ is reached. Once the flag count reaches $n_\text{max,flags}$, retraining is triggered on the harvested data before the hybrid loop resumes.}
-    \label{fig: integrated_workflow}
+    \caption{Idealised parallel execution. After an initial data-collection (warmup) phase, WaterLily advances the simulation $\mathcal{S}$ in its own lane, while the pipeline $\mathcal{P}$ is trained and, later, retrained concurrently on a separate lane. Because the two lanes run concurrently, the training cost overlaps with the solver's execution rather than adding to the total wall time.}    
+    \label{fig: workflow_parallel}
 \end{figure}
 
-A single hybrid run consists of 4 distinct phases, illustrated by figure \ref{fig: integrated_workflow}. The simulation begins with the warmup phase, in which WaterLily runs as usual from $t^*_0$ to $t^*_\text{train}$. During the warmup phase, relevant snapshots are sampled to populate the training data on which the autoencoder and the neural ODE will subsequently be trained. Following this, the \emph{training} phase begins at $t^*_\text{train}$ and is intended to run in parallel to the running WaterLily simulation, such that the conventional time integration continues while $\varphi_\theta$, $\psi_\theta$, $f_\phi$ and the KNN reference set $\mathcal{K}$ are constructed in parallel. Once training is finished, the trained components are handed off to the simulation environment, and the \emph{hybrid loop} phase begins, in which CFD time-stepping is alternated with latent neural ODE. If the KNN OOD monitor has repeatedly flagged a drift outside of the training distribution during this phase, the simulation will enter the \emph{retraining} phase, where $\mathcal{P}$ will quit rolling out in the latent space, and WaterLily will resume for a short time and more snapshots are sampled again to use as new data to retrain both networks on the augmented dataset before the hybrid loop is rejoined again. 
+
+This execution model allows the resources for WaterLily and $\mathcal{P}$ training to be isolated from each other; this way, each computational lane can be fit for the workload it actually runs. The WaterLily lane carries only the conventional time-stepping on and the cheap latent rollouts on CPU, while the training lane can be allocated its own resources and tuned to fit the autoencoder and neural ODE more optimally than would be tolerable if those cycles were charged against the live solver. Realising this requires concurrent computation, an in-memory mechanism for exchanging weights and state rather than disk I/O, and explicit handling of the fact that the model under training necessarily lags the live flow. The differentiable, backend-agnostic design of WaterLily makes such a coupling feasible in principle, but its implementation is beyond the scope of the present work.
+
+
+\subsubsection{Serial execution}
+\label{subsect: serial_exec}
+
+The model actually implemented and measured in this work is serial: all four phases execute sequentially in a single process on a single execution lane, as depicted in \autoref{fig: workflow_serial}. Wall-time runs strictly left to right, and each phase completes before the next begins. WaterLily advances $\mathcal{S}$ through the warmup phase; it is then \emph{paused} while $\mathcal{P}$ is trained; the hybrid loop subsequently alternates conventional WaterLily steps with NODE rollouts; and when the flag count reaches $n_\text{max,flags}$, the hybrid loop halts so that WaterLily can resume for a short time to harvest the update trajectory, after which both networks are refitted on the augmented dataset with the solver and rollouts idle. Only once retraining completes does the loop resume. This is precisely the sequence given in Algorithm~\ref{alg: run_hybrid}, and the recorded timings are correspondingly additive, with no overlap between the solver and the pipeline.
+
+\begin{figure}[htbp]
+    \centering
+    \input{figures/Methodology/tikz_figures/hybrid_workflow_serial}
+    % \includegraphics[width=0.5\linewidth]{}
+    \caption{serial execution of the integrated acceleration workflow. The same phases run end-to-end in a single lane, with wall time progressing from left to right. Training and retraining pause WaterLily, so each phase completes before the next begins; the hybrid loop alternates conventional solver steps with NODE rollouts, and a rollout is flagged once $d_K^2(\tilde{\mathbf{z}},\mathcal{K}_1) > \tau$.}
+\label{fig: workflow_serial}
+\end{figure}
+
+The downside of the serial operation is the loss of the resource isolation that motivates the parallel model: with a single lane, training, CFD, and latent inference no longer occupy separate resources but compete for the same one in sequence, so every second spent training or retraining is charged directly to the run's wall-time rather than hidden behind continued solver execution. The training of the autoencoder and neural ODE, being the most expensive phase, therefore dominates the wall-time of a serial run. Beyond this, repeatedly switching the single lane among training, conventional time-stepping, and latent inference is not free: each transition incurs its own overhead, and these context switches accumulate over a run, further inflating the total wall time.
+
+ Running on a single lane keeps the implementation straightforward: there are no concurrent processes to coordinate, no in-memory exchange of weights and state between a training lane and a solver lane, and no need to reconcile a model that is still fitting against a flow that has already moved on. The trade-off is that the phases no longer overlap, so the costs of training, retraining, and switching between training, inference, and CFD are all counted towards the total wall time. The parallel model of \autoref{subsect: parallel_exec} remains the intended deployment; the implementation and wall-time implications of the serial choice made here are examined in \autoref{subsect: 4_wall_time}
+
+% \begin{figure}
+%     \centering
+%     \input{figures/Methodology/tikz_figures/hybrid_workflow_serial}
+%     \caption{Caption}
+%     \label{fig:placeholder}
+% \end{figure}
+
+% A single hybrid run consists of 4 distinct phases, illustrated by \autoref{fig: integrated_workflow}. The simulation begins with the initial data-collection phase, in which WaterLily runs as usual from $t^*_0$ to $t^*_\text{train}$. During the initial data-collection phase, relevant snapshots are sampled to populate the training data for the autoencoder and the neural ODE. Following this, the \emph{training} phase begins at $t^*_\text{train}$ and is intended to run in parallel to the running WaterLily simulation, such that the conventional time integration continues while $\varphi_\theta$, $\psi_\theta$, $f_\phi$ and the KNN reference set $\mathcal{K}$ are constructed in parallel. Once training is finished, the trained components are handed off to the simulation environment, and the \emph{hybrid loop} phase begins, in which CFD time-stepping is alternated with latent neural ODE. If the KNN OOD monitor has repeatedly flagged a drift outside of the training distribution during this phase, the simulation will enter the \emph{retraining} phase, where $\mathcal{P}$ will quit rolling out in the latent space, and WaterLily will resume for a short time and more snapshots are sampled again to use as new data to retrain both networks on the augmented dataset before the hybrid loop is rejoined again. 
 
 
 
 \subsection{Overview of Hybrid Loop}
 \label{subsect: Hybrid}
 
-The Hybrid loop controls how WaterLily is interwoven with the neural ODE rollouts. Once the ML pipeline $\mathcal{P} = (\varphi_\theta, \psi_\theta, f_\phi, \mathcal{K}, \tau)$ has been trained it is ready to be handed to the hybrid loop. Here, the simulation $\mathcal{S}$ is advanced from $t^*_\text{handoff}$ to $t^*_\text{accel, end}$, deciding at every step whether the next state is produced by the conventional solver or by the latent dynamics $f_\phi$. The full procedure is given in Algorithm~\ref{alg: run_hybrid}; the rest of this subsection walks through its behaviour and motivates two cadence hyperparameters $n_\text{switch}$ and $n_\text{max, flags}$.
+The Hybrid loop controls how WaterLily is interwoven with the neural ODE rollouts. Once the ML pipeline $\mathcal{P} = (\varphi_\theta, \psi_\theta, f_\phi, \mathcal{K}, \tau)$ has been trained it is ready to be handed to the hybrid loop. Here, the simulation $\mathcal{S}$ is advanced from $t^*_\text{handoff}$ to $t^*_\text{accel, end}$, deciding at every step whether the next state is produced by the conventional solver or by the latent dynamics $f_\phi$. The full procedure is given in \autoref{alg: run_hybrid}; the rest of this subsection walks through its behaviour and motivates two cadence hyperparameters $n_\text{switch}$ and $n_\text{max, flags}$.
 
 
 \begin{algorithm}[ht!]
@@ -932,47 +936,21 @@ $n_\text{step} \gets 0$ \tcp*[r]{step counter within the current hybrid window}
 \Return $\mathcal{S}, \; \hat{\mathcal{T}}_u$
 \end{algorithm}
 
-The loop starts with a surrogate rollout by invoking \texttt{predict\_flex} (Algorithm~\ref{alg: predict_flex}). The KNN-rolled-out return values are then used to advance the simulation in time and space. The decoded flow field $\hat{\mathbf{u}}$ and integration horizon $n_\text{integr}$ together indicate a successful rollout: $\hat{\mathbf{u}}$ is injected into $\mathcal{S}$ via the coupling routine described in Section~\ref{sect: coupling}, advancing simulation time by $n_\text{integr} \cdot \Delta t^*$ in a single step. When the KNN monitor has flagged the initial encoded value as OOD, an empty rollout ($n_\text{integr} = 0$) will be returned; in this case, the outer loop falls back to a single CFD step so as not to lose simulation progress.
+The loop starts with a surrogate rollout, which invokes \texttt{predict\_flex} (Algorithm~\ref{alg: predict_flex}). The KNN-rolled-out return values are then used to advance the simulation in time and space. The decoded flow field $\hat{\mathbf{u}}$ and integration horizon $n_\text{integr}$ together indicate a successful rollout: $\hat{\mathbf{u}}$ is injected into $\mathcal{S}$ via the coupling routine described in \autoref{sect: coupling}, advancing simulation time by $n_\text{integr} \cdot \Delta t^*$ in a single step. When the KNN monitor has flagged the initial encoded value as OOD, an empty rollout ($n_\text{integr} = 0$) will be returned; in this case, the outer loop falls back to a single CFD step so as not to lose simulation progress.
 
-After a rollout has been completed, the hybrid loop stabilises $\mathcal{S}$ by advancing by a single call to \texttt{sim\_step!}, the same routine that produced the warmup data. After either a prediction rollout or a WaterLily step, the step count is increased to enable monitoring of the ML--CFD switching. 
+After a rollout has been completed, the hybrid loop stabilises $\mathcal{S}$ by advancing by a single call to \texttt{sim\_step!}, the same routine that produced the initial data. After either a prediction rollout or a WaterLily step, the step count is increased to enable monitoring of the ML--CFD switching. 
 
-Following $n_\text{max, flags}$ rollouts, the loop hands control back to WaterLily for a select period $t^*_\text{update}$ to collect a fresh trajectory $\mathcal{T}_{u,\text{update}}$, appends it to the training trajectories $\boldsymbol{\mathcal{T}}_u$, and refits the pipeline. Both counters are then reset, and the hybrid loop resumes. The mechanics of retraining the pipeline are laid out in Section~\ref{subsect: retraining}
+Following $n_\text{max, flags}$ rollouts, the loop hands control back to WaterLily for a select period $t^*_\text{update}$ to collect a fresh trajectory $\mathcal{T}_{u,\text{update}}$, appends it to the training trajectories $\boldsymbol{\mathcal{T}}_u$, and refits the pipeline. Both counters are then reset, and the hybrid loop resumes. The mechanics of retraining the pipeline are laid out in \autoref{subsect: retraining}
 
-The parameter $n_\text{switch}$ ensures the latent rollout is attempted only after enough CFD steps to make the prediction worth the overhead. Each call to \texttt{predict\_flex} has a fixed cost from the encode--rollout--decode cycle, and the time gained from injecting $n_\text{integr} \cdot \Delta t^*$ into the simulation must be large enough to offset that cost. A low $n_\text{switch}$ wastes calls on intervals over which the latent state has barely changed, while a high $n_\text{switch}$ leaves potential acceleration unused.
+The parameter $n_\text{switch}$ ensures that the latent rollout is attempted only after enough CFD steps to make the prediction worthwhile, given the overhead. Each call to \texttt{predict\_flex} has a fixed cost from the encode--rollout--decode cycle, and the time gained from injecting $n_\text{integr} \cdot \Delta t^*$ into the simulation must be large enough to offset that cost. A low $n_\text{switch}$ wastes calls on intervals over which the latent state has barely changed, while a high $n_\text{switch}$ leaves potential acceleration unused.
 
-The cumulative flag count $n_\text{max, flags}$ is used to distinguish when either the autoencoder needs to be retrained on new data, or to track how far removed the neural ODE is from its last seen simulation time $t^*_\textbf{train}$. As discussed in section~\ref{sect: KNN}, the rollout drift is generally governed by the rollout distance, meaning that a rollout drift away from the ground truth does not mean that the latent dynamics $f_\phi$ are not applicable anymore in the current time regime. Requiring $n_\text{max, flags}$ flags before retraining acts as a buffer, which ensures that all relevant performance can be extracted from the trained parameters $\phi$ before retraining is needed. 
-
-
-% \begin{algorithm}[H]
-% \SetAlgoLined
-% \DontPrintSemicolon
-% \caption{Warmup data generation (\texttt{run\_warmup})}
-% \label{alg: warmup}
-% \KwIn{WaterLily simulation $\mathcal{S}$; warmup horizon $t^*_\text{train}$; sampling interval $\Delta t^*_\text{samp}$}
-% \KwOut{initial training trajectory $\mathcal{T}_{u,1} = \{(\mathbf{u}_n, \mu_0)\}_{n=1}^{n_{t,1}}$}
-
-% $\mathcal{T}_{u,1} \gets \varnothing$\;
-% $t^*_\text{next} \gets \Delta t^*_\text{samp}$\;
-
-% \tcp*[l]{advance CFD until training horizon is reached}
-% \While{$t^*(\mathcal{S}) < t^*_\text{train}$}{
-%     $\mathcal{S} \gets \texttt{sim\_step!}(\mathcal{S})$\;
-%     \If{$t^*(\mathcal{S}) \geq t^*_\text{next}$}{
-%         $\mathcal{T}_{u,1} \gets \mathcal{T}_{u,1} \cup \{(\mathbf{u}(\mathcal{S}),\, \mu_0(\mathcal{S}))\}$ \tcp*[r]{snapshot at $t^*_\text{next}$}
-%         $t^*_\text{next} \gets t^*_\text{next} + \Delta t^*_\text{samp}$\;
-%     }
-% }
-% \Return $\mathcal{T}_{u,1}$
-% \end{algorithm}
-
+The cumulative flag count $n_\text{max, flags}$ is used to distinguish when either the autoencoder needs to be retrained on new data, or to track how far removed the neural ODE is from its last seen simulation time $t^*_\textbf{train}$. As discussed in \autoref{sect: KNN}, the rollout drift is generally governed by the rollout distance, meaning that a rollout drift away from the ground truth does not mean that the latent dynamics $f_\phi$ are not applicable anymore in the current time regime. Requiring $n_\text{max, flags}$ flags before retraining acts as a buffer, which ensures that all relevant performance can be extracted from the trained parameters $\phi$ before retraining is needed. 
 
 
 \subsection{WaterLily Coupling}
 \label{sect: coupling}
 
-The injection routine on line 7 of \autoref{alg: run_hybrid} is responsible for coupling the predicted velocity field to the simulation $\mathcal{S}$ and applying the correct boundary condition to the ghost cells of the computational domain, it ensures that $\mathbf{\hat{u}}$ does not destabilise the simulation by re-establishing a physically self-consistent state before conventional CFD time-stepping continues. Because the prediction  $\mathbf{\hat{u}}$ can not be guaranteed to be completely divergence-free after the rollout, and more importantly, is generated without any knowledge of the pressure field that should accompany it through the projection step. Simply replacing the $u_{\mathcal{S}}
-\leftarrow \hat{\mathbf{u}}$ (\autoref{alg: run_hybrid}, line~7) would result in the simulation having a pressure field that lags $n_\text{integr} \cdot \Delta t^*$ behind the velocity field, polluting both
-the velocity update and the next Poisson residual~\cite{Maertens2015}. We therefore reconstruct $p$ \emph{before} resuming time integration, in two stages, as summarised in~\autoref{alg: inject}.
+The injection routine on line 7 of \autoref{alg: run_hybrid} is responsible for coupling the predicted velocity field to the simulation $\mathcal{S}$ and applying the correct boundary condition to the ghost cells of the computational domain. It ensures that $\mathbf{\hat{u}}$ does not destabilise the simulation by re-establishing a physically self-consistent state before conventional CFD time-stepping continues. Because the prediction $\mathbf{\hat{u}}$ can not be guaranteed to be completely divergence-free after the rollout, and more importantly, is generated without any knowledge of the pressure field that should accompany it through the projection step. Simply replacing the $u_{\mathcal{S}} \leftarrow \hat{\mathbf{u}}$ (\autoref{alg: run_hybrid}, line~7) would result in the simulation having a pressure field that lags $n_\text{integr} \cdot \Delta t^*$ behind the velocity field, polluting both the velocity update and the next Poisson residual~\cite{Maertens2015}. We therefore reconstruct $p$ \emph{before} resuming time integration, in two stages, as summarised in~\autoref{alg: inject}.
 
 \begin{algorithm}[H]
 \SetAlgoLined
@@ -1053,7 +1031,7 @@ The second step resolves this discrepancy by letting the discretised Navier--Sto
 
 \subsection{Adaptive Retraining}
 \label{subsect: retraining}
-When the hybrid loop has flagged for $\mathcal{P}$ to be retrained after $n_\text{max, flags}$ rollouts, the hybrid simulation stops switching between CFD and latent rollouts and enters the retraining stage. We are now situated in line 18 from \autoref{alg: run_hybrid}, following the pseudocode, the retrain routine will begin gathering new data so that the network weights $\theta$ and $\phi$ of the autoencoder ($\varphi_\theta$, $\psi_\theta$) and neural ODE ($f_\phi$) in parallel to the running simulation $\mathcal{S}$, as displayed in figure \ref{fig: retraining_logic}.
+When the hybrid loop has flagged for $\mathcal{P}$ to be retrained after $n_\text{max, flags}$ rollouts, the hybrid simulation stops switching between CFD and latent rollouts and enters the retraining stage. We are now situated in line 18 from \autoref{alg: run_hybrid}, following the pseudocode, the retrain routine will begin gathering new data so that the network weights $\theta$ and $\phi$ of the autoencoder ($\varphi_\theta$, $\psi_\theta$) and neural ODE ($f_\phi$) in parallel to the running simulation $\mathcal{S}$, as displayed in \autoref{fig: retraining_logic}.
 
 \begin{figure}[ht]
     \centering
@@ -1061,44 +1039,47 @@ When the hybrid loop has flagged for $\mathcal{P}$ to be retrained after $n_\tex
     \caption{Retraining procedure triggered once the flag count reaches $n_\text{max,flags}$. The CFD trajectory is extended by $t^*_\text{update}$ to harvest new snapshots, after which the autoencoder, latent encoding, Neural ODE and KNN reference set are refitted concurrently while WaterLily continues advancing the flow. The hybrid loop then resumes with the flag and step counters reset.}
 \label{fig: retraining_logic}
 \end{figure}
+\todo{Change figure to also reflect serial retraining}
 
-The retraining phase is structured around a single design principle: rather than discarding the trained pipeline $\mathcal{P}^{(r)}=(\varphi_\theta^{(r)}, \psi_\theta^{(r}, f_\phi^{(r)}, \mathcal{K}^{(r)}, \tau^{(r)})$ and learning a new one from scratch, the existing networks are fine-tuned on the augmented training set $\boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}$. This allows us to augment the existing training data with $\mathcal{T}_{u,\text{update}}$ from the same simulation, which shares the same dominant statistical structure as the data already encoded. This means that the existing weights $\theta^{(r)}, \phi^{(r)}$ have already been fitted to similar flow dynamics and do not need a high number of optimisation steps to update themselves to learn the newly seen flow dynamics. The following paragraphs will detail the exact meaning of the retrain flagging and the operations needed for a single retraining routine. 
+The retraining phase is structured around a single design principle: rather than discarding the trained pipeline $\mathcal{P}^{(r)}=(\varphi_\theta^{(r)}, \psi_\theta^{(r}, f_\phi^{(r)}, \mathcal{K}^{(r)}, \tau^{(r)})$ and learning a new one from scratch, the existing networks are fine-tuned on the augmented training set $\boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}$. This allows us to augment the existing training data with $\mathcal{T}_{u,\text{update}}$ from the same simulation, which shares the dominant statistical structure of the already-encoded data. This means that the existing weights $\theta^{(r)}, \phi^{(r)}$ have already been fitted to similar flow dynamics and do not need a high number of optimisation steps to update themselves to learn the newly seen flow dynamics. The following paragraphs will detail the exact meaning of the retrain flagging and the operations needed for a single retraining routine. 
 
 \subsubsection{Retrain flagging}
 
-At this stage, it is important to note what the retrain flag actually signifies. As mentioned in \ref{sect: OOD}, the KNN monitor tracks the proximity of the rolled-out latent state $\tilde{\mathbf{z}}$ to the training snapshots in $\boldsymbol{\mathcal{T}}_z$; this means that an OOD flag indicates that the neural ODE is being asked to extrapolate into the region of latent space for which empirical evidence of the validity of $f_\phi$ still exists. It doesn't directly indicate that the rolled-out trajectory is inaccurate, but given the periodic nature of the flow, the assumption can be made that a drift away from the common distribution can indicate that $f_\phi$ has learned a certain flow behaviour that was not explicitly seen in the training trajectory $\boldsymbol{\mathcal{T}}_z$, but is present in the complete simulation trajectory. This means that the retraining criterion has a certain uncertainty aspect to it, where it cannot know if the drift that it has repeatedly flagged is caused by accumulated error by the neural ODE, or if the repeated drift is caused by an unseen, but correct, flow prediction. 
+At this stage, it is important to note what the retrain flag actually signifies. As mentioned in \autoref{sect: OOD}, the KNN monitor tracks the proximity of the rolled-out latent state $\tilde{\mathbf{z}}$ to the training snapshots in $\boldsymbol{\mathcal{T}}_z$; this means that an OOD flag indicates that the neural ODE is being asked to extrapolate into the region of latent space for which empirical evidence of the validity of $f_\phi$ still exists. It doesn't directly indicate that the rolled-out trajectory is inaccurate, but given the periodic nature of the flow, the assumption can be made that a drift away from the common distribution can indicate that $f_\phi$ has learned a certain flow behaviour that was not explicitly seen in the training trajectory $\boldsymbol{\mathcal{T}}_z$, but is present in the complete simulation trajectory. This means that the retraining criterion has a certain uncertainty aspect to it, where it cannot know if the drift that it has repeatedly flagged is caused by accumulated error by the neural ODE, or if the repeated drift is caused by an unseen, but correct, flow prediction. 
 
-The retraining criterion thus implements a deliberate conservative policy: rather than wait for a visible divergence in the reconstructed flow field, by which point unphysical state has already been injected into $\mathcal{S}$ via the coupling routine of Section~\ref{sect: coupling}, the loop quits the latent rollout-CFD switching as soon as the neural ODE is repeatedly asked to operate outside the data that can support the new prediction for it. $n_\text{max, flags}$ controls the strength of this policy, where a small value will trigger retraining at the first flagged drift, accepting the cost of refitting in exchange for accurate coverage; a large value will tolerate more rollouts between retraining, accepting a greater risk of inaccurate rollouts in exchange for better acceleration performance. 
+The retraining criterion thus implements a deliberate conservative policy: rather than wait for a visible divergence in the reconstructed flow field, by which point unphysical state has already been injected into $\mathcal{S}$ via the coupling routine of \autoref{sect: coupling}, the loop quits the latent rollout-CFD switching as soon as the neural ODE is repeatedly asked to operate outside the data that can support the new prediction for it. $n_\text{max, flags}$ controls the strength of this policy, where a small value will trigger retraining at the first flagged drift, accepting the cost of refitting in exchange for accurate coverage; a large value will tolerate more rollouts between retraining, accepting a greater risk of inaccurate rollouts in exchange for better acceleration performance. 
 
 
 \subsubsection{Data Extension}
- Following the flowchart in figure~\ref{fig: retraining_logic} and line 19 in \autoref{alg: run_hybrid}, after the CFD data has been extended using the same snapshot sampling cadence as in the warmup phase, the new trajectory can be appended to the existing training trajectory:  
+ Following the flowchart in \autoref{fig: retraining_logic} and line 19 in \autoref{alg: run_hybrid}, after the CFD data has been extended using the same snapshot sampling cadence as in the initial data-collection phase, the new trajectory can be appended to the existing training trajectory:  
 
  \begin{equation}\label{eq: traju_update}
      \boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}
  \end{equation}
  
-Where the new trajectory $\mathcal{T}_{u,\text{update}}$ has its own distinctive trajectory length $n_{t, update}$, but has a matching $\Delta t$ as the warmup trajectory to ensure that the additional trajectory can be evaluated in a similar fashion to the warmup trajectory.
+Where the new trajectory $\mathcal{T}_{u,\text{update}}$ has its own distinctive trajectory length $n_{t, update}$, but has a matching $\Delta t$ as the initial trajectory to ensure that the additional trajectory can be evaluated in a similar fashion to the initial trajectory.
 
 \subsubsection{Autoencoder Retraining}
-As mentioned before, after having augmented $\boldsymbol{\mathcal{T}_u}$ with new CFD snapshots, the weights $\theta$ of the autoencoder can be updated such that they are able to produce trustworthy latent trajectories on which the neural ODE can be trained. Essentially, the autoencoder retraining is done in the same way as the preliminary training of Section~\ref{sect: AEtraining}, the main difference being that the weights are not initialised from a random state but inherited from the converged parent model $\theta^{(k)}$.
+As mentioned before, after having augmented $\boldsymbol{\mathcal{T}_u}$ with new CFD snapshots, the weights $\theta$ of the autoencoder can be updated such that they are able to produce trustworthy latent trajectories on which the neural ODE can be trained. Essentially, the autoencoder retraining is done in the same way as the preliminary training of \autoref{sect: AEtraining}, the main difference being that the weights are not initialised from a random state but inherited from the converged parent model $\theta^{(k)}$.
 
-During retraining, the augmented snapshot set is again partitioned temporally into a training and validation pool and a held-out test pool, following the same convention as the initial training: the $20\%$ validation split monitors the loss at epoch level, while the test pool, drawn from the most recent snapshots, gauges generalisation beyond the training horizon. The partition of the augmented set is shown in Figure~\ref{fig: augmented_forces}. The newly harvested trajectory
-$\mathcal{T}_{u,\text{update}}$ appears as the second training chunk near $t^* \approx 29$ and is temporally disjoint from the original window $t^* \in [0, 20]$. The empty patch in the middle of the forces indicates the range in which the neural ODE was rolling out the latent trajectories and is not sampled as training data for the retraining of the models. 
+During retraining, the augmented snapshot set is again partitioned temporally into a training and validation pool and a held-out test pool, following the same convention as the initial training: the $20\%$ validation split monitors the loss at epoch level, while the test pool, drawn from the most recent snapshots, gauges generalisation beyond the training horizon. The partition of the augmented set is shown in \autoref{fig: augmented_forces}. The newly harvested trajectory $\mathcal{T}_{u,\text{update}}$ appears as the second training chunk near $t^* \approx 29$ and is temporally disjoint from the original window $t^* \in [0, 20]$. The empty patch in the middle of the forces indicates the range over which the neural ODE was rolling out latent trajectories and is not sampled as training data for retraining the models. 
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/Methodology/training_force_replot.pdf}
-    \caption{Train/validation and test split after retraining, with the augmented trajectory set spanning two disjoint chunks. Drag ($C_d$) and lift ($C_l$) coefficients are shown over $t^*$; the green band marks the train/validation region and the pink band the held-out test region, with dots denoting validation points and the vertical break marking the start of the second harvested chunk. The split again reserves the latest cycles for testing, so retraining accuracy is assessed on flow states not seen during the refit.}
+    % \caption{Train/validation and test split after retraining. The augmented set spans two disjoint chunks; the green band marks the train/validation region and the pink band the held-out test region (dots: validation points), with the vertical break at the start of the second harvested chunk. The latest cycles are again reserved for testing, so retraining accuracy is assessed on unseen flow states.}
+    % \caption{Train/validation and test split after retraining, with the augmented trajectory set spanning two disjoint chunks. Drag ($C_d$) and lift ($C_l$) coefficients are shown over $t^*$; the green band marks the train/validation region and the pink band the held-out test region, with dots denoting validation points and the vertical break marking the start of the second harvested chunk. The split again reserves the latest cycles for testing, so retraining accuracy is assessed on flow states not seen during the refit.}
+
+    \caption{Train/validation (green) and held-out test (pink) split of the augmented set after retraining. Drag ($C_d$) and lift ($C_l$) coefficients are shown over $t^*$; The set spans two disjoint chunks, with the vertical break marking the second harvested chunk; dots denote validation points. The latest cycles are reserved for testing.}
     \label{fig: augmented_forces}
 \end{figure}
 
-The autoencoder retraining inherits the methodology of the preliminary training, including the loss function~\eqref{eq: AE_loss} and its physics-informed components. The only quantities that are altered during retraining are the learning rate $\eta$ and the number of training epochs. The learning rate is lowered relative to the initial training because the inherited weights $\theta^{(r)}$ already produce accurate flow reconstructions; retaining the original, higher rate would risk perturbing them away from the region of the loss landscape they have already converged to, rather than refining them. 
+The autoencoder retraining inherits the methodology of the preliminary training, including the loss \ref{eq: AE_loss} and its physics-informed components. The only quantities that are altered during retraining are the learning rate $\eta$ and the number of training epochs. The learning rate is lowered relative to the initial training phase because the inherited weights $\theta^{(r)}$ already produce accurate flow reconstructions; retaining the original, higher rate risks perturbing them away from the region of the loss landscape they have already converged to, rather than refining them. 
 
 \subsubsection{Neural ODE retraining}
 Before the neural ODE can be retrained, the augmented trajectory $\boldsymbol{\mathcal{T}}^{(r+1)}_u$ needs to be re-encoded with the updated autoencoder. Since the encoder weights have changed, $\theta^{(r+1)} \neq \theta^{(r)}$, the latent trajectory used for the previous fit no longer match the space the encoder now produces, so a new set $\boldsymbol{\mathcal{T}}_z^{(r+1)} = \varphi_\theta^{(r+1)}(\boldsymbol{\mathcal{T}}_u^{(r+1)})$ is generated.
 
-The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the same multiple-shooting loss~\eqref{eq: node_loss_ms} used before. The difference is that the set now holds $N_T + 1$ trajectories instead of $N_T$, so the average $\langle \cdot \rangle$ in \eqref{eq: node_loss_ms} runs over the original trajectories and the newly added one together, a visual representation of the new fitted trajectories is displayed in Figure~\ref{fig: ms_retrain_epochs}
+The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the same multiple-shooting loss~\eqref{eq: node_loss_ms} used before. The difference is that the set now holds $N_T + 1$ trajectories instead of $N_T$, so the average $\langle \cdot \rangle$ in \eqref{eq: node_loss_ms} runs over the original trajectories and the newly added one together. A visual representation of the new fitted trajectories is displayed in \autoref{fig: ms_retrain_epochs}
 
 \begin{figure}[htbp]
     \centering
@@ -1108,7 +1089,7 @@ The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the sam
     \caption{Epoch 0}
     \label{fig: ms_retrain_epoch0}
     \end{subfigure}
-    \hfill
+    % \hfill
     \begin{subfigure}[t]{0.48\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figures/Methodology/node_retrain/20_trajectories.pdf}
@@ -1124,7 +1105,7 @@ The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the sam
         \caption{Epoch 100}
         \label{fig: ms_retrain_epoch100}
     \end{subfigure}
-    \hfill
+    % \hfill
     \begin{subfigure}[t]{0.48\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figures/Methodology/node_retrain/250_trajectories.pdf}
@@ -1135,8 +1116,8 @@ The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the sam
     \label{fig: ms_retrain_epochs}
 \end{figure}
 
-Contrasting the initial multiple shooting training in Figure~\ref{fig: ms_epochs}, where the
-The network starts from a random state, and the epoch-0 prediction is nearly flat. Here, the inherited network $f_\phi^{(r)}$ already tracks the first chunk closely at epoch 0, since that part of the latent dynamics was learned during the previous fit. Looking at the second trajectory, the figure also shows that $f_\phi$ was already able to fit the unseen trajectory fairly well, since the initial shooting gaps are not very large. This means the training schedule can be shortened because the network begins near a good solution. 
+Contrasting the initial multiple shooting training in \autoref{fig: ms_epochs}, where the
+The network starts from a random state, and the epoch-0 prediction is nearly flat. Here, the inherited network $f_\phi^{(r)}$ already tracks the first chunk closely at epoch 0, since that part of the latent dynamics was learned during the previous fit. Looking at the second trajectory, the figure also shows that $f_\phi$ already fits the unseen trajectory fairly well, since the initial shooting gaps are not very large. This means the training schedule can be shortened because the network begins near a good solution. 
 
-Following the logic in Figure~\ref{fig: retraining_logic}, after the neural ODE has been trained, the KNN integration monitor can be reconfigured using the new augmented trajectory $\boldsymbol{\mathcal{T}_u}$ in the same fashion as was displayed in \ref{alg: ood_knn}. After having finished this, the updated pipeline can be reassembled using the updated autoencoder ($\varphi_\theta^{(r+1)}$, $\psi_\theta^{(r+1)}$) and latent dynamics $f_\phi^{(r+1)}$. 
+Following the logic in \autoref{fig: retraining_logic}, after the neural ODE has been trained, the KNN integration monitor can be reconfigured using the new augmented trajectory $\boldsymbol{\mathcal{T}_u}$ in the same fashion as was displayed in \ref{alg: ood_knn}. After having finished this, the updated pipeline can be reassembled using the updated autoencoder ($\varphi_\theta^{(r+1)}$, $\psi_\theta^{(r+1)}$) and latent dynamics $f_\phi^{(r+1)}$. 
 

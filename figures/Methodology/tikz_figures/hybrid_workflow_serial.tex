@@ -27,6 +27,7 @@
       warmup/.initial    = 35mm,
       empty/.initial     =20mm,
       gap1/.initial      = 5mm,    % small solver run before pipeline starts
+      emptygap/.initial = 25mm,
       solverA/.initial   = 12mm,    % solver before first NODE rollout
       nodeA/.initial     = 8mm,
       solverB/.initial   = 8mm,
@@ -45,35 +46,27 @@
 % =====================================================================
 % TIMELINE BAR (laid out left-to-right by chaining anchors)
 % =====================================================================
-\node[warmup, minimum width=\L{warmup}]                  (warmup)  at (0,0) {Initial data-collection};
+\node[warmup, minimum width=\L{warmup}]                         (warmup)  at (0,0) {Initial data-collection};
 
-\node[warmup, minimum width=\L{gap1},   right=0pt of warmup]   (s0) {};
-\node[empty,  minimum width=\L{empty},  right=0pt of s0]       (e1) {\scriptsize $\mathcal{S}$ keeps running};
+\node[stage, minimum width=\L{emptygap}, right=0pt of warmup] (train1) {$\mathcal{P}$ training};
 
-% \node[warmup, minimum width=\L{solverA},right=0pt of e1]       (sA) {};
-\node[node,   minimum width=\L{nodeA},  right=0pt of e1]       (nA) {};
-\node[hybrid, minimum width=\L{solverB},right=0pt of nA]       (sB) {};
-\node[node,   minimum width=\L{nodeB},  right=0pt of sB]       (nB) {NODE rollout};
-\node[hybrid, minimum width=\L{solverC},right=0pt of nB]       (sC) {};
-\node[node,   minimum width=\L{nodeC},  right=0pt of sC]       (nC) {};
+\node[node,   minimum width=\L{nodeA},   right=0pt of train1]   (nA) {};
+\node[hybrid, minimum width=\L{solverB}, right=0pt of nA]       (sB) {};
+\node[node,   minimum width=\L{nodeB},   right=0pt of sB]       (nB) {NODE rollout};
+\node[hybrid, minimum width=\L{solverC}, right=0pt of nB]       (sC) {};
+\node[node,   minimum width=\L{nodeC},   right=0pt of sC]       (nC) {};
 
-\node[warmup, minimum width=\L{retrain},right=0pt of nC]       (sD) {Updating data};
-\node[warmup, minimum width=\L{gap1},   right=0pt of sD]       (sE) {};
-\node[empty,  minimum width=\L{empty},  right=0pt of sE]       (e2) {\scriptsize $\mathcal{S}$ keeps running};
-
-\node[node,   minimum width=\L{nodeA},  right=0pt of e2]       (nD) {};
-\node[hybrid, minimum width=\L{solverB},right=0pt of nD]       (sF) {};
-\node[node,   minimum width=\L{nodeB},  right=0pt of sF]       (nE) {NODE rollout};
-\node[hybrid, minimum width=\L{solverC},right=0pt of nE]       (sG) {};
-\node[node,   minimum width=\L{nodeC},  right=0pt of sG]       (nF) {};
-
-\node[warmup, minimum width=\L{tail},   right=0pt of nF, text width=20mm]      (tail) {\scriptsize Hybrid-Retrain loop continues};
+\node[warmup, minimum width=\L{retrain}, right=0pt of nC]       (sD) {Updating data};
+\node[stage, minimum width=\L{emptygap}, right=0pt of sD]       (train2) {$\mathcal{P}$ retraining};
 
 
-% multi-line labels inside the wider NODE blocks
-% \foreach \n/\txt in {nB/{NODE\\rollout}, nC/{Updating\\data}}{%
-%   \node[font=\sffamily\small, align=center] at (\n.center) {\txt};
-% }
+\node[node,   minimum width=\L{nodeA},   right=0pt of train2]   (nD) {};
+\node[hybrid, minimum width=\L{solverB}, right=0pt of nD]       (sF) {};
+\node[node,   minimum width=\L{nodeB},   right=0pt of sF]       (nE) {NODE rollout};
+\node[hybrid, minimum width=\L{solverC}, right=0pt of nE]       (sG) {};
+\node[node,   minimum width=\L{nodeC},   right=0pt of sG]       (nF) {};
+
+\node[warmup, minimum width=\L{tail},    right=0pt of nF, text width=20mm]      (tail) {\scriptsize Hybrid-Retrain loop continues};
 
 % =====================================================================
 % TIME AXIS (drawn just below the bar)
@@ -84,27 +77,11 @@
 
 % --- tick labels on the axis -----------------------------------------
 \node[tick, below=2mm of warmup.south east,anchor=north] {$t_{\text{train}}$};
-\node[tick, below=2mm of e1.south east,anchor=north] {$t_{\text{handoff}}$};
+\node[tick, below=2mm of train1.south east,anchor=north] {$t_{\text{handoff}}$};
 
 \node[tick, below=2mm of nC.south east,    anchor=north] {$n_\text{flags} \geq n_\text{max, flags}$};
 \node[tick, below=2mm of nF.south east,    anchor=north] {$n_\text{flags} \geq n_\text{max, flags}$};
 \node[tick, below=2mm of tail.south east,  anchor=north] {$t_{\text{end}}$};
-
-% =====================================================================
-% STAGE BOXES (above the bar) and connecting arrows
-% =====================================================================
-\node[stage, above=12mm of warmup.north east, anchor=south west, xshift=3mm]
-        (pipe) {$\mathcal{P}$ training};
-\node[stage, above=12mm of sD.north east, anchor=south west, xshift=3mm]
-        (retr) {$\mathcal{P}$ Retraining};
-        
-
-% vertical brackets: end-of-warmup -> pipeline, end-of-tail-train -> retraining
-\draw[arr] (warmup.north east) |- (pipe.west);
-\draw[arr] (pipe.east) -| ($(nA.north west)+(0,0)$);
-
-\draw[arr] (sD.north east) |- (retr.west);
-\draw[arr] (retr.east) -| (nD.north west);
 
 % =====================================================================
 % OOD-trigger condition d(k,z) > tau, pointing at NODE-rollout boundaries
@@ -131,11 +108,7 @@
 
 \begin{scope}[on background layer]
   % --- 1. Outer container first ---------------------------------------
-  \node[
-    draw=black!50, dashed, rounded corners=4pt, fill=none,
-    inner sep=6mm, draw=none,
-    fit=(warmup)(tail)(pipe)(retr)(ood)
-  ] (outer) {};
+  \node[draw=black!50, dashed, rounded corners=4pt, fill=none, inner sep=6mm, draw=none, fit=(warmup)(tail)(ood)] (outer) {};
 
   % --- 2. Shared top/bottom Y reference (just points; we'll project) --
   \coordinate (topY) at ($(outer.north) + (0,-2mm)$);
@@ -150,29 +123,19 @@
   }
 
   % --- 4. Phase panels: project topY/botY onto each panel's own x range
-  \node[phase, fill=phasewarmup,
-        fit=(warmup)
-            (warmup.west |- topY) (warmup.east |- botY)]              (pW)  {};
-
-  \node[phase, fill=phasetraining,
-        fit=(s0)(e1)(pipe)
-            (s0.west |- topY)   (e1.east  |- botY)]                   (pT)  {};
-
-  \node[phase, fill=phasehybrid,
-        fit=(nA)(sB)(nB)(sC)(nC)(ood)
-            (nA.west |- topY)   (nC.east  |- botY)]                   (pH1) {};
-
-  \node[phase, fill=phaseretrain,
-        fit=(sD)(sE)(e2)(retr)
-            (sD.west |- topY)   (e2.east  |- botY)]                   (pR)  {};
-
-  \node[phase, fill=phasehybrid,
-        fit=(nD)(nF)
-            (nD.west |- topY)   (nF.east  |- botY)]                   (pH2) {};
-\node[phase, fill=phaseretrain,
-        fit=(tail)
-            (tail.west |- topY)   (tail.east  |- botY)]                   (pR2) {};
+  \node[phase, fill=phasewarmup,   fit=(warmup) (warmup.west |- topY) (warmup.east |- botY)]              (pW)  {};
+  \node[phase, fill=phasetraining, fit=(train1) (train1.west |- topY)   (train1.east  |- botY)]     (pT)  {};
+  \node[phase, fill=phasehybrid,   fit=(nA)(sB)(nB)(sC)(nC)(ood) (nA.west |- topY)   (nC.east  |- botY)]  (pH1) {};
+  \node[phase, fill=phaseretrain,  fit=(sD)(train2)(sD.west |- topY)   (train2.east  |- botY)]      (pR)  {};
+  \node[phase, fill=phasehybrid,   fit=(nD)(sF)(nE)(sG)(nF)(ood2)(nD.west |- topY)   (nF.east  |- botY)]                    (pH2) {};
+  \node[phase, fill=phaseretrain,  fit=(tail)(tail.west |- topY)   (tail.east  |- botY)]                  (pR2) {};
 \end{scope}
+
+% \node[node,   minimum width=\L{nodeA},   right=0pt of train2]   (nD) {};
+% \node[hybrid, minimum width=\L{solverB}, right=0pt of nD]       (sF) {};
+% \node[node,   minimum width=\L{nodeB},   right=0pt of sF]       (nE) {NODE rollout};
+% \node[hybrid, minimum width=\L{solverC}, right=0pt of nE]       (sG) {};
+% \node[node,   minimum width=\L{nodeC},   right=0pt of sG]       (nF) {};
 
 \foreach \panel/\txt in {%
   pW/Warmup,
