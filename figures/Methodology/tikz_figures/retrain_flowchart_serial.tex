@@ -1,0 +1,82 @@
+% figures/Methodology/tikz_figures/retrain_flowchart_serial.tex
+%
+% Serial retraining flowchart.
+% When the OOD flag triggers retraining, WaterLily extends the trajectory,
+% then HALTS while the ML pipeline (AE, NODE, KNN) is refit sequentially.
+% The simulation only resumes once retraining completes.
+%
+
+\begin{tikzpicture}[
+    % ===================================================================
+    % STYLES — identical to the parallel figure
+    % ===================================================================
+    node distance      = 6mm and 11mm,
+    font               = \scriptsize,
+    block/.style = {
+    draw=black, thick, line width=0.4pt,
+    rounded corners=0.0pt,
+    minimum height=8mm,
+    align=center,
+    inner sep=4pt, outer sep=0pt,
+    font=\sffamily\itshape\scriptsize,
+    blur shadow={shadow blur steps=4, shadow blur extra rounding=0.5pt,
+                 shadow xshift=1pt, shadow yshift=-1pt, shadow opacity=25}
+    },
+    flag/.style        = {block,  minimum width=46mm, fill=red!14},
+    cfdproc/.style     = {block,  minimum width=42mm, fill=warmupgreen},
+    mlproc/.style      = {block,  minimum width=42mm, fill=nodegrey},
+    retrainproc/.style = {block,  minimum width=42mm, fill=yellow!40!white},
+                          %
+    startstop/.style   = {ellipse, draw, thick, align=center, fill=gray!12,
+                          minimum height=7mm,  minimum width=34mm},
+    % --- arrows ---
+    flow/.style        = {-{Latex[length=2mm,width=1.6mm]}, thick},
+    line/.style        = {thick},
+]
+
+% =======================================================================
+% SERIAL SPINE  — one node after another, no fork
+% =======================================================================
+\node[flag]                        (trigger) {%
+    Retraining flag raised\\
+    $n_\text{flag} \geq n_\text{max, flags}$};
+
+\node[cfdproc, below=of trigger]   (cutoff)  {%
+    Extend CFD trajectory\\
+    \texttt{run\_cutoff}, duration $t^*_\text{update}$};
+
+\node[cfdproc, below=of cutoff]    (pause)   {%
+    WaterLily halted\\
+    \textit{simulation paused,}\\\textit{no time-stepping}\\\textit{during retraining}};
+
+\node[retrainproc, below=of pause] (refitAE) {%
+    Fine-tune autoencoder\\
+    $\varphi_\theta^{(k)},\psi_\theta^{(k)} \to \varphi_\theta^{(k+1)},\psi_\theta^{(k+1)}$};
+
+\node[mlproc, below=of refitAE]    (encode)    {%
+    Re-encode training set\\
+    $\mathbf{z}_n = \varphi_\theta^{(k+1)}(\mathbf{x}_{\text{in},n})$};
+
+\node[retrainproc, below=of encode] (refitNODE) {%
+    Fine-tune neural ODE\\
+    $f_\phi^{(k)} \to f_\phi^{(k+1)}$};
+
+\node[retrainproc, below=of refitNODE] (refitKNN) {%
+    Refit KNN reference set\\
+    $\mathcal{K}^{(k+1)},\,\tau^{(k+1)}$};
+
+\node[startstop, below=of refitKNN] (resume)  {%
+    Resume hybrid loop\\reset $n_\text{flag},\,n_\text{step}$};
+
+% =======================================================================
+% ARROWS  — straight chain
+% =======================================================================
+\draw[flow] (trigger)   -- (cutoff);
+\draw[flow] (cutoff)    -- (pause);
+\draw[flow] (pause)     -- (refitAE);
+\draw[flow] (refitAE)   -- (encode);
+\draw[flow] (encode)    -- (refitNODE);
+\draw[flow] (refitNODE) -- (refitKNN);
+\draw[flow] (refitKNN)  -- (resume);
+
+\end{tikzpicture}

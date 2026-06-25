@@ -987,61 +987,42 @@ The first stage (\autoref{alg: inject}, line~4) is a single Biot--Savart project
 \subsubsection{Second Predictor-Corrector}
 The second stage (\autoref{alg: inject}, line~5) is a single Heun predictor--corrector step using the Biot--Savart projection on both substeps, identical to the scheme \texttt{mom\_step!} that applies during ordinary time integration. This step is needed because the pressure recovered by the first Biot--Savart Projection is coupled to  $\hat{\mathbf{u}}$, in the sense that it makes the predicted field divergence-free, but $\hat{\mathbf{u}}$ itself is not a correct Navier--Stokes state; particularly due to the fact that the decoder struggles with reproducing sharp gradients near the body boundary, which do not match the kernel-smoothed momentum balance that BDIM enforces near the immersed boundary~\cite{Maertens2015}. When the Poisson solver is asked to make such a field divergence-free, the resulting pressure contains pressure values that absorb these inconsistencies into a non-physical pressure impulse. If we were to sample the pressure force on the body at this stage, the resulting forces would produce a sudden peak in $C_d$ and $C_l$, which could offset the stability of the simulation $\mathcal{S}$. 
 
-% \todo{refer to appendix to show figure of hybrid sim with pressure peaks}
 
 The second step resolves this discrepancy by letting the discretised Navier--Stokes operators act on the state once. This operation combines the convection-diffusion update with the BDIM correction, such that the correct physics are applied near the body region $\mathcal{B}$ through the $\mu^\epsilon_0,\mu^\epsilon_1$ moments of the immersed-boundary kernel, the projection step in the \texttt{mom\_step} then recovers a pressure that is consistent with the correct physics rather than with the predicted reconstruction. One predictor-corrector step has been found sufficient in practice; it was observed that the force-coefficient peaks that appear after stage~1 are completely mitigated by the second step, and WaterLily can proceed without issue. The computational cost of the additional step of these 3 Poisson solves is negligible compared to the rollout horizon  $n_\text{integr}\!\cdot\!\Delta t^*$ that the neural ODE has just produced.
 
 
-
-% \begin{algorithm}[H]
-% \SetAlgoLined
-% \DontPrintSemicolon
-% \caption{Velocity-field injection (\texttt{inject})}
-% \label{alg: inject}
-% \KwIn{simulation $\mathcal{S}$; surrogate prediction $\hat{\mathbf{u}}$; rollout span $n_\text{integr}\!\cdot\!\Delta t^*$}
-% \KwOut{simulation $\mathcal{S}$ with $(\mathbf{u}_{\mathcal{S}}, p_{\mathcal{S}})$ restored to a Navier--Stokes-consistent state, ready to resume CFD time-stepping}
-
-% \BlankLine
-% \tcc{Overwrite the simulation state with the surrogate prediction}
-% $\mathbf{u}_{\mathcal{S}} \gets \hat{\mathbf{u}}$
-%    \tcp*[r]{replace interior velocity}
-% $p_{\mathcal{S}} \gets 0$
-%    \tcp*[r]{pressure no longer consistent with $\mathbf{u}_{\mathcal{S}}$}
-% $\Delta t_{\mathcal{S}} \gets \Delta t_{\mathcal{S}} \cup \{n_\text{integr}\!\cdot\!\Delta t^*\}$
-%    \tcp*[r]{advance physical time by the rollout horizon}
-
-% \BlankLine
-% \tcc{Stage 1 -- recover pressure consistent with the injected }
-% % \tcc{Stage 1 -- recover pressure consistent with the injected}
-% $p_{\mathcal{S}} \gets \texttt{biot\_project}(\mathbf{u}_{\mathcal{S}})$
-%    \tcp*[r]{enforce $\nabla\!\cdot\!\mathbf{u}_{\mathcal{S}} = 0$ and recover $p_{\mathcal{S}}$}
-
-% \BlankLine
-% \tcc{Stage 2 -- one Heun step to re-establish physical $(\mathbf{u}_{\mathcal{S}}, p_{\mathcal{S}})$}
-% $(\mathbf{u}_{\mathcal{S}}, p_{\mathcal{S}}) \gets \texttt{biot\_mom\_step}(\mathbf{u}_{\mathcal{S}}, p_{\mathcal{S}})$
-%    \tcp*[r]{NSE update; BDIM re-imposes near-body physics}
-
-% \BlankLine
-% \Return $\mathcal{S}$
-% \end{algorithm}
-
-% continue writing on motivation for 2 step biot application
-
-
-
 \subsection{Adaptive Retraining}
 \label{subsect: retraining}
-When the hybrid loop has flagged for $\mathcal{P}$ to be retrained after $n_\text{max, flags}$ rollouts, the hybrid simulation stops switching between CFD and latent rollouts and enters the retraining stage. We are now situated in line 18 from \autoref{alg: run_hybrid}, following the pseudocode, the retrain routine will begin gathering new data so that the network weights $\theta$ and $\phi$ of the autoencoder ($\varphi_\theta$, $\psi_\theta$) and neural ODE ($f_\phi$) in parallel to the running simulation $\mathcal{S}$, as displayed in \autoref{fig: retraining_logic}.
+When the hybrid loop has flagged for $\mathcal{P}$ to be retrained after $n_\text{max, flags}$ rollouts, the hybrid simulation stops switching between CFD and latent rollouts and enters the retraining stage. We are now situated in line 18 from \autoref{alg: run_hybrid}; following the pseudocode, the retrain routine will begin gathering new data so that the network weights $\theta$ and $\phi$ of the autoencoder ($\varphi_\theta$, $\psi_\theta$) and neural ODE ($f_\phi$) can be updated, after which the hybrid loop is rejoined. As with the execution models in \autoref{subsect: parallel_exec} and \autoref{subsect: serial_exec}, this update can be mapped to computational resources in two ways, as shown in \autoref{fig: retrain_comparison}. In the parallel scheme (\autoref{fig: retrain_parallel}), the refit is performed concurrently with the running simulation $\mathcal{S}$, which continues advancing the flow using conventional CFD time-stepping. In the serial scheme (\autoref{fig: retrain_serial}), WaterLily is instead halted for the full refit, so that the entire retraining span is charged directly to the run's wall-time before the hybrid loop can resume.
 
-\begin{figure}[ht]
+% \begin{figure}[hbpt]
+%     \centering
+%     \input{figures/Methodology/tikz_figures/retrain_flowchart}
+%     \caption{Retraining procedure triggered once the flag count reaches $n_\text{max,flags}$. The CFD trajectory is extended by $t^*_\text{update}$ to harvest new snapshots, after which the autoencoder, latent encoding, Neural ODE and KNN reference set are refitted concurrently while WaterLily continues advancing the flow. The hybrid loop then resumes with the flag and step counters reset.}
+% \label{fig: retraining_logic}
+% \end{figure}
+% \todo{Change figure to also reflect serial retraining}
+
+\begin{figure}[htbp]
     \centering
-    \input{figures/Methodology/tikz_figures/retrain_flowchart}
-    \caption{Retraining procedure triggered once the flag count reaches $n_\text{max,flags}$. The CFD trajectory is extended by $t^*_\text{update}$ to harvest new snapshots, after which the autoencoder, latent encoding, Neural ODE and KNN reference set are refitted concurrently while WaterLily continues advancing the flow. The hybrid loop then resumes with the flag and step counters reset.}
-\label{fig: retraining_logic}
+    \begin{subfigure}[t]{0.48\textwidth}
+        \adjustbox{scale=0.65,center}{\input{figures/Methodology/tikz_figures/retrain_flowchart.tex}}
+        \caption{Parallel retraining: the CFD trajectory is extended by $t^*_\text{update}$ to harvest fresh snapshots, after which the pipeline is refitted concurrently while WaterLily keeps advancing $\mathcal{S}$}
+        \label{fig: retrain_parallel}
+    \end{subfigure}
+    % \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \adjustbox{scale=0.65,center}{\input{figures/Methodology/tikz_figures/retrain_flowchart_serial.tex}}
+         \caption{Serial retraining: the same snapshot harvest is followed by a sequential refit of the pipeline with WaterLily paused, so the cost is charged directly to wall-time and the loop resumes only once retraining completes.}
+     \label{fig: retrain_serial}
+    \end{subfigure}
+    \caption{Adaptive retraining under the two scheduling strategies.}
+    \label{fig: retrain_comparison}
 \end{figure}
-\todo{Change figure to also reflect serial retraining}
 
-The retraining phase is structured around a single design principle: rather than discarding the trained pipeline $\mathcal{P}^{(r)}=(\varphi_\theta^{(r)}, \psi_\theta^{(r}, f_\phi^{(r)}, \mathcal{K}^{(r)}, \tau^{(r)})$ and learning a new one from scratch, the existing networks are fine-tuned on the augmented training set $\boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}$. This allows us to augment the existing training data with $\mathcal{T}_{u,\text{update}}$ from the same simulation, which shares the dominant statistical structure of the already-encoded data. This means that the existing weights $\theta^{(r)}, \phi^{(r)}$ have already been fitted to similar flow dynamics and do not need a high number of optimisation steps to update themselves to learn the newly seen flow dynamics. The following paragraphs will detail the exact meaning of the retrain flagging and the operations needed for a single retraining routine. 
+The retraining phase is structured around a single design principle: rather than discarding the trained pipeline $\mathcal{P}^{(r)}=(\varphi_\theta^{(r)}, \psi_\theta^{(r)}, f_\phi^{(r)}, \mathcal{K}^{(r)}, \tau^{(r)})$ and learning a new one from scratch, the existing networks are fine-tuned on the augmented training set $\boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}$. This allows us to augment the existing training data with $\mathcal{T}_{u,\text{update}}$ from the same simulation, which shares the dominant statistical structure of the already-encoded data. This means that the existing weights $\theta^{(r)}, \phi^{(r)}$ have already been fitted to similar flow dynamics and do not need a high number of optimisation steps to update themselves to learn the newly seen flow dynamics. The following paragraphs will detail the exact meaning of the retrain flagging and the operations needed for a single retraining routine. 
+
+
 
 \subsubsection{Retrain flagging}
 
@@ -1051,7 +1032,7 @@ The retraining criterion thus implements a deliberate conservative policy: rathe
 
 
 \subsubsection{Data Extension}
- Following the flowchart in \autoref{fig: retraining_logic} and line 19 in \autoref{alg: run_hybrid}, after the CFD data has been extended using the same snapshot sampling cadence as in the initial data-collection phase, the new trajectory can be appended to the existing training trajectory:  
+ Following the flowchart in \autoref{fig: retrain_serial} and line 19 in \autoref{alg: run_hybrid}, after the CFD data has been extended using the same snapshot sampling cadence as in the initial data-collection phase, the new trajectory can be appended to the existing training trajectory:  
 
  \begin{equation}\label{eq: traju_update}
      \boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}
@@ -1067,9 +1048,6 @@ During retraining, the augmented snapshot set is again partitioned temporally in
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/Methodology/training_force_replot.pdf}
-    % \caption{Train/validation and test split after retraining. The augmented set spans two disjoint chunks; the green band marks the train/validation region and the pink band the held-out test region (dots: validation points), with the vertical break at the start of the second harvested chunk. The latest cycles are again reserved for testing, so retraining accuracy is assessed on unseen flow states.}
-    % \caption{Train/validation and test split after retraining, with the augmented trajectory set spanning two disjoint chunks. Drag ($C_d$) and lift ($C_l$) coefficients are shown over $t^*$; the green band marks the train/validation region and the pink band the held-out test region, with dots denoting validation points and the vertical break marking the start of the second harvested chunk. The split again reserves the latest cycles for testing, so retraining accuracy is assessed on flow states not seen during the refit.}
-
     \caption{Train/validation (green) and held-out test (pink) split of the augmented set after retraining. Drag ($C_d$) and lift ($C_l$) coefficients are shown over $t^*$; The set spans two disjoint chunks, with the vertical break marking the second harvested chunk; dots denote validation points. The latest cycles are reserved for testing.}
     \label{fig: augmented_forces}
 \end{figure}
@@ -1119,5 +1097,5 @@ The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the sam
 Contrasting the initial multiple shooting training in \autoref{fig: ms_epochs}, where the
 The network starts from a random state, and the epoch-0 prediction is nearly flat. Here, the inherited network $f_\phi^{(r)}$ already tracks the first chunk closely at epoch 0, since that part of the latent dynamics was learned during the previous fit. Looking at the second trajectory, the figure also shows that $f_\phi$ already fits the unseen trajectory fairly well, since the initial shooting gaps are not very large. This means the training schedule can be shortened because the network begins near a good solution. 
 
-Following the logic in \autoref{fig: retraining_logic}, after the neural ODE has been trained, the KNN integration monitor can be reconfigured using the new augmented trajectory $\boldsymbol{\mathcal{T}_u}$ in the same fashion as was displayed in \ref{alg: ood_knn}. After having finished this, the updated pipeline can be reassembled using the updated autoencoder ($\varphi_\theta^{(r+1)}$, $\psi_\theta^{(r+1)}$) and latent dynamics $f_\phi^{(r+1)}$. 
+Following the logic in \autoref{fig: retrain_serial}, after the neural ODE has been trained, the KNN integration monitor can be reconfigured using the new augmented trajectory $\boldsymbol{\mathcal{T}_u}$ in the same fashion as was displayed in \ref{alg: ood_knn}. After having finished this, the updated pipeline can be reassembled using the updated autoencoder ($\varphi_\theta^{(r+1)}$, $\psi_\theta^{(r+1)}$) and latent dynamics $f_\phi^{(r+1)}$. 
 
