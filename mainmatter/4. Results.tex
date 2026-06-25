@@ -1011,6 +1011,7 @@ An important note on the stricter rollout gating is that the stricter monitor at
 
 
 \section{Generalisation}
+\label{sect: 4_generalization}
 The results presented so far were obtained at a single operating point, namely the cylinder wake at $Re = 2500$ on a $256 \times 256$ grid, a regime deliberately chosen to test the limits of the autoencoder and neural ODE under a manageable computational cost. This section steps away from that point to inspect how the achieved acceleration and physical fidelity respond to the two parameters that define the problem, the flow regime and the grid resolution.  The Reynolds number is first reduced to a lower shedding regime to assess the pipeline's behaviour, where the dynamics are simpler and more periodic. The grid is then refined at fixed $Re$ to examine how the achieved acceleration scales with problem size. Together, the two experiments characterise the behaviour of the accelerator on either side of the point at which it was developed.
 
 Unless stated otherwise, all parameters are kept identical to those of the base case reported in~\autoref{sect: 4_setup}; the autoencoder architecture, latent dimension $N_z = 16$, the multiple-shooting settings ($n_s = 15$, $\lambda_c= 200$), and the KNN monitor calibration are left unchanged, so that any difference in the results below is just an effect of the change in flow regime or grid resolution alone.

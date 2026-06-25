@@ -34,18 +34,18 @@ It is in this landscape that the subject of this thesis finds itself. Bounded by
 
 
 \begin{center}
-\begin{minipage}{0.9\textwidth}
+\begin{minipage}{\textwidth}
 \begin{tcolorbox}[colback=gray!5,colframe=black!80,title=Research Question]
 \textbf{How effectively can neural ordinary differential equations accelerate the time integration step in CFD solvers for unsteady simulations without compromising accuracy?}
+\vspace{1em}
 
 \begin{enumerate}
-    
   % \item To what extent can neural ODE architectures maintain physical accuracy across different unsteady flow regimes, Reynolds numbers, and geometric configurations (e.g., symmetric, asymmetric, irregular shapes)?
-
+    % \vfill
     \item How well does the neural ODE acceleration framework preserve the flow's statistical observables when transferred across Reynolds numbers and grid resolution?
-  
-    \item How sensitive is the solution accuracy of neural ODEs to network architecture and training data quality? 
-  
+    \vspace{0.5em}
+    \item How sensitive is the solution accuracy of neural ODEs to network architecture and training data quality?
+    \vspace{0.5em}
     \item How can residuals or cost functions be used to constrain or monitor neural ODE integration quality?
   
 \end{enumerate}
