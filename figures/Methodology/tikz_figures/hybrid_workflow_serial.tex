@@ -34,7 +34,7 @@
       nodeB/.initial     = 22mm,    % main NODE rollout block
       solverC/.initial   = 8mm,
       nodeC/.initial     = 6mm,    % "Updating data" pink stretch
-      retrain/.initial   = 10mm,    % tail solver run before retraining
+      retrain/.initial   = 15mm,    % tail solver run before retraining
       gap2/.initial      = 12mm,    % short solver after retraining
       nodeD/.initial     = 10mm,
       tail/.initial      = 6mm,
@@ -46,7 +46,7 @@
 % =====================================================================
 % TIMELINE BAR (laid out left-to-right by chaining anchors)
 % =====================================================================
-\node[warmup, minimum width=\L{warmup}]                         (warmup)  at (0,0) {Initial data-collection};
+\node[warmup, minimum width=\L{warmup}]                         (warmup)  at (0,0) {Gather $\mathcal{T}_{u,1}$};
 
 \node[stage, minimum width=\L{emptygap}, right=0pt of warmup] (train1) {$\mathcal{P}$ training};
 
@@ -56,7 +56,7 @@
 \node[hybrid, minimum width=\L{solverC}, right=0pt of nB]       (sC) {};
 \node[node,   minimum width=\L{nodeC},   right=0pt of sC]       (nC) {};
 
-\node[warmup, minimum width=\L{retrain}, right=0pt of nC]       (sD) {Updating data};
+\node[warmup, minimum width=\L{retrain}, right=0pt of nC]       (sD) {Gather $\mathcal{T}_{u,2}$};
 \node[stage, minimum width=\L{emptygap}, right=0pt of sD]       (train2) {$\mathcal{P}$ retraining};
 
 
@@ -138,7 +138,7 @@
 % \node[node,   minimum width=\L{nodeC},   right=0pt of sG]       (nF) {};
 
 \foreach \panel/\txt in {%
-  pW/Warmup,
+  pW/Initial data-collection,
   pT/Training,
   pH1/Hybrid loop,
   pR/Retraining,

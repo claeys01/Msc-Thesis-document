@@ -820,7 +820,7 @@ $\hat{\mathbf{u}} \gets \psi_\theta(\tilde{\mathbf{z}}_\text{old},\, \mu_0)$\;
 \end{algorithm}
 
 
-It is important to note that when the OOD flag is triggered, the latent neural ODE is \emph{not} retrained immediately. A single OOD event does not imply that $f_\phi$ cannot represent the latent dynamics of the current latent state anymore; it mainly implies that the current latent rollout has accumulated too much error and, as a result, drifted into a region of the latent space where the rollout can no longer be certified against the training distribution.  The conventional solver therefore takes over for $n_\text{switch}$ steps, advancing $\mathbf{u}$ through the Navier--Stokes solver for a predetermined number of steps to stabilise the simulation back to a recognisable regime that the encoder can then compress again. Retraining of the autoencoder and neural ODE is triggered when the integration monitor has flagged the new latent state for a predetermined number of times. At that point, the current simulation state has already drifted too far past the training regime, meaning that the assumption that the existing training set covers the active flow regime is no longer defensible, and the in situ pipeline then updates its reference data and retrains the ML pipeline entirely. 
+It is important to note that when the OOD flag is triggered, the latent neural ODE is \emph{not} retrained immediately. A single OOD event does not imply that $f_\phi$ cannot represent the latent dynamics of the current latent state anymore; it mainly implies that the current latent rollout has accumulated too much error and, as a result, drifted into a region of the latent space where the rollout can no longer be certified against the training distribution.  The conventional solver therefore takes over for $n_\text{switch}$ steps, advancing $\mathbf{u}$ through the Navier--Stokes solver to stabilise the simulation back to a recognisable regime that the encoder can then compress again. Retraining of the autoencoder and neural ODE is triggered when the integration monitor flags the new latent state a predetermined number of times. At that point, the current simulation state has already drifted too far from the training regime, meaning the assumption that the existing training set covers the active flow regime is no longer defensible. The in situ pipeline then updates its reference data and retrains the ML pipeline entirely. 
 
 
 % When an OOD flag is raised, control is handed back to the conventional CFD solver.
@@ -837,29 +837,11 @@ Having introduced and motivated the three trained components of the framework in
 
 A single hybrid run consists of 4 distinct phases. The simulation begins with the initial data-collection phase, in which WaterLily runs as usual from $t^*_0$ to $t^*_\text{train}$. During the initial data-collection phase, relevant snapshots are sampled to populate the training data for the autoencoder and the neural ODE. Following this, the \emph{training} phase begins at $t^*_\text{train}$, during which $\varphi_\theta$, $\psi_\theta$, $f_\phi$ and the KNN reference set $\mathcal{K}$ are constructed. Once training is finished, the trained components are handed off to the simulation environment, and the \emph{hybrid loop} phase begins, in which CFD time-stepping is alternated with the latent neural ODE. If the KNN OOD monitor has repeatedly flagged a drift outside of the training distribution during this phase, the simulation enters the \emph{retraining} phase, where $\mathcal{P}$ quits rolling out in the latent space, WaterLily resumes for a short time, and more snapshots are sampled to use as new data to retrain both networks on the augmented dataset before the hybrid loop is rejoined.
 
-These four phases define \emph{what} is computed, but not \emph{how} they are mapped onto computational resources in wall time. Two execution models are possible: a \emph{parallel} model, in which network training overlaps the running solver and which represents the intended deployment of the framework, and a \emph{serial} model, in which every phase executes sequentially on a single lane. 
-
-
-\subsubsection{Parallel execution}
-\label{subsect: parallel_exec}
-In the parallel execution model, illustrated in \autoref{fig: workflow_parallel}, the WaterLily solver and the training procedure of $\mathcal{P} = (\varphi_\theta, \psi_\theta, f_\phi, \mathcal{K}, \tau)$ run in parallel to each other and advance on their own time. This means that during the initial data-collection phase, WaterLily advances $\mathcal{S}$ from $t^*_0$ to $t^*_\text{train}$ and harvests the initial training data as usual. Once the training phase begins, however, the solver does not pause: the conventional time integration continues while $\varphi_\theta$, $\psi_\theta$, $f_\phi$ and the KNN reference set $\mathcal{K}$ are constructed in parallel. The fitted pipeline is then handed off to the running simulation at $t^*_\text{handoff}$. The same methodology governs retraining: when the flag count reaches $n_\text{max,flags}$, WaterLily keeps advancing the flow and sampling snapshots while both networks are refitted concurrently on the augmented dataset, and the updated components are injected before the hybrid loop is rejoined.
-
-\begin{figure}[htbp]
-    \centering
-    \input{figures/Methodology/tikz_figures/hybrid_workflow}
-    % \includegraphics[width=0.5\linewidth]{}
-    \caption{Idealised parallel execution. After an initial data-collection (warmup) phase, WaterLily advances the simulation $\mathcal{S}$ in its own lane, while the pipeline $\mathcal{P}$ is trained and, later, retrained concurrently on a separate lane. Because the two lanes run concurrently, the training cost overlaps with the solver's execution rather than adding to the total wall time.}    
-    \label{fig: workflow_parallel}
-\end{figure}
-
-
-This execution model allows the resources for WaterLily and $\mathcal{P}$ training to be isolated from each other; this way, each computational lane can be fit for the workload it actually runs. The WaterLily lane carries only the conventional time-stepping on and the cheap latent rollouts on CPU, while the training lane can be allocated its own resources and tuned to fit the autoencoder and neural ODE more optimally than would be tolerable if those cycles were charged against the live solver. Realising this requires concurrent computation, an in-memory mechanism for exchanging weights and state rather than disk I/O, and explicit handling of the fact that the model under training necessarily lags the live flow. The differentiable, backend-agnostic design of WaterLily makes such a coupling feasible in principle, but its implementation is beyond the scope of the present work.
-
+These four phases specify the logical order in which each computation proceeds, but not how that order is managed across hardware. Two execution models can be distinguished. In \emph{serial} operation, the one actually implemented and measured in this work, all four phases run sequentially on a single lane, so each phase's cost is added to a single total wall time. In the \emph{parallel} model, the intended deployment is for $\mathcal{P}$ to train in parallel with WaterLily and hybrid rollouts.
 
 \subsubsection{Serial execution}
 \label{subsect: serial_exec}
-
-The model actually implemented and measured in this work is serial: all four phases execute sequentially in a single process on a single execution lane, as depicted in \autoref{fig: workflow_serial}. Wall-time runs strictly left to right, and each phase completes before the next begins. WaterLily advances $\mathcal{S}$ through the warmup phase; it is then \emph{paused} while $\mathcal{P}$ is trained; the hybrid loop subsequently alternates conventional WaterLily steps with NODE rollouts; and when the flag count reaches $n_\text{max,flags}$, the hybrid loop halts so that WaterLily can resume for a short time to harvest the update trajectory, after which both networks are refitted on the augmented dataset with the solver and rollouts idle. Only once retraining completes does the loop resume. This is precisely the sequence given in Algorithm~\ref{alg: run_hybrid}, and the recorded timings are correspondingly additive, with no overlap between the solver and the pipeline.
+In the serial execution method, all four phases execute sequentially in a single process on a single execution lane, as depicted in \autoref{fig: workflow_serial}. Wall-time runs strictly left to right, and each phase completes before the next begins. WaterLily advances $\mathcal{S}$ through the initial data collection phase; it is then paused while $\mathcal{P}$ is trained; the hybrid loop subsequently alternates conventional WaterLily steps with NODE rollouts; and when the flag count reaches $n_\text{max,flags}$, the hybrid loop halts so that WaterLily can resume for a short time to harvest the update trajectory, after which both networks are refitted on the augmented dataset with the solver and rollouts idle. Only once retraining completes does the loop resume. This is precisely the sequence given in \autoref{alg: run_hybrid}, and the recorded timings are correspondingly additive, with no overlap between the solver and the pipeline.
 
 \begin{figure}[htbp]
     \centering
@@ -872,6 +854,24 @@ The model actually implemented and measured in this work is serial: all four pha
 The downside of the serial operation is the loss of the resource isolation that motivates the parallel model: with a single lane, training, CFD, and latent inference no longer occupy separate resources but compete for the same one in sequence, so every second spent training or retraining is charged directly to the run's wall-time rather than hidden behind continued solver execution. The training of the autoencoder and neural ODE, being the most expensive phase, therefore dominates the wall-time of a serial run. Beyond this, repeatedly switching the single lane among training, conventional time-stepping, and latent inference is not free: each transition incurs its own overhead, and these context switches accumulate over a run, further inflating the total wall time.
 
  Running on a single lane keeps the implementation straightforward: there are no concurrent processes to coordinate, no in-memory exchange of weights and state between a training lane and a solver lane, and no need to reconcile a model that is still fitting against a flow that has already moved on. The trade-off is that the phases no longer overlap, so the costs of training, retraining, and switching between training, inference, and CFD are all counted towards the total wall time. The parallel model of \autoref{subsect: parallel_exec} remains the intended deployment; the implementation and wall-time implications of the serial choice made here are examined in \autoref{subsect: 4_wall_time}
+
+\subsubsection{Parallel execution}
+\label{subsect: parallel_exec}
+
+The intended deployment, illustrated in \autoref{fig: workflow_parallel}, is a parallel model in which WaterLily and the training of $\mathcal{P} = (\varphi_\theta, \psi_\theta, f_\phi, \mathcal{K}, \tau)$ advance on separate lanes. The solver never pauses: it keeps integrating $\mathcal{S}$ and harvesting snapshots while the networks are fitted and, later, refitted concurrently, with the updated pipeline injected at $t^*_\text{handoff}$. Because the two lanes run side by side, the training cost overlaps the solver rather than adding to the wall time.
+
+\begin{figure}[htbp]
+    \centering
+    \input{figures/Methodology/tikz_figures/hybrid_workflow}
+    % \includegraphics[width=0.5\linewidth]{}
+    \caption{Idealised parallel execution. After an initial data-collection phase, WaterLily advances the simulation $\mathcal{S}$ in its own lane, while the pipeline $\mathcal{P}$ is trained and, later, retrained concurrently on a separate lane. Because the two lanes run concurrently, the training cost overlaps with the solver's execution rather than adding to the total wall time.}    
+    \label{fig: workflow_parallel}
+\end{figure}
+
+This execution model allows the resources for WaterLily and $\mathcal{P}$ training to be isolated from each other; this way, each computational lane can be fit for the workload it actually runs. The WaterLily lane carries only the conventional time-stepping on and the cheap latent rollouts on CPU, while the training lane can be allocated its own resources and tuned to fit the autoencoder and neural ODE more optimally than would be tolerable if those cycles were charged against the live solver. Realising this requires concurrent computation, an in-memory mechanism for exchanging weights and state rather than disk I/O, and explicit handling of the fact that the model under training necessarily lags the live flow. The differentiable, backend-agnostic design of WaterLily makes such a coupling feasible in principle, but its implementation is beyond the scope of the presented work.
+
+
+% This isolation also lets each lane be sized for the workload it actually carries, so the autoencoder and neural ODE can be fitted on dedicated resources rather than against the live solver. Realising it requires concurrent execution, in-memory exchange of weights and state, and explicit handling of the lag between the model under training and the live flow. The differentiable, backend-agnostic design of WaterLily makes such a coupling feasible in principle, but it is \emph{not implemented in the present work}.
 
 % \begin{figure}
 %     \centering
@@ -993,35 +993,25 @@ The second step resolves this discrepancy by letting the discretised Navier--Sto
 
 \subsection{Adaptive Retraining}
 \label{subsect: retraining}
-When the hybrid loop has flagged for $\mathcal{P}$ to be retrained after $n_\text{max, flags}$ rollouts, the hybrid simulation stops switching between CFD and latent rollouts and enters the retraining stage. We are now situated in line 18 from \autoref{alg: run_hybrid}; following the pseudocode, the retrain routine will begin gathering new data so that the network weights $\theta$ and $\phi$ of the autoencoder ($\varphi_\theta$, $\psi_\theta$) and neural ODE ($f_\phi$) can be updated, after which the hybrid loop is rejoined. As with the execution models in \autoref{subsect: parallel_exec} and \autoref{subsect: serial_exec}, this update can be mapped to computational resources in two ways, as shown in \autoref{fig: retrain_comparison}. In the parallel scheme (\autoref{fig: retrain_parallel}), the refit is performed concurrently with the running simulation $\mathcal{S}$, which continues advancing the flow using conventional CFD time-stepping. In the serial scheme (\autoref{fig: retrain_serial}), WaterLily is instead halted for the full refit, so that the entire retraining span is charged directly to the run's wall-time before the hybrid loop can resume.
-
-% \begin{figure}[hbpt]
-%     \centering
-%     \input{figures/Methodology/tikz_figures/retrain_flowchart}
-%     \caption{Retraining procedure triggered once the flag count reaches $n_\text{max,flags}$. The CFD trajectory is extended by $t^*_\text{update}$ to harvest new snapshots, after which the autoencoder, latent encoding, Neural ODE and KNN reference set are refitted concurrently while WaterLily continues advancing the flow. The hybrid loop then resumes with the flag and step counters reset.}
-% \label{fig: retraining_logic}
-% \end{figure}
-% \todo{Change figure to also reflect serial retraining}
+When the hybrid loop has flagged for $\mathcal{P}$ to be retrained after $n_\text{max, flags}$ rollouts, the hybrid simulation stops switching between CFD and latent rollouts and enters the retraining stage. We are now situated in line 18 from \autoref{alg: run_hybrid}; following the pseudocode, the retrain routine will begin gathering new data so that the network weights $\theta$ and $\phi$ of the autoencoder ($\varphi_\theta$, $\psi_\theta$) and neural ODE ($f_\phi$) can be updated, after which the hybrid loop is rejoined. As with the execution models in \autoref{subsect: serial_exec} and \autoref{subsect: parallel_exec}, this update can be mapped to computational resources in two ways, as shown in \autoref{fig: retrain_comparison}. In the serial scheme (\autoref{fig: retrain_serial}), WaterLily is halted for the full refit, so that the entire retraining span is charged directly to the run's wall-time before the hybrid loop can resume. In the parallel scheme (\autoref{fig: retrain_parallel}), the refit is instead performed concurrently with the running simulation $\mathcal{S}$, which continues advancing the flow using conventional CFD time-stepping.
 
 \begin{figure}[htbp]
     \centering
-    \begin{subfigure}[t]{0.48\textwidth}
-        \adjustbox{scale=0.65,center}{\input{figures/Methodology/tikz_figures/retrain_flowchart.tex}}
-        \caption{Parallel retraining: the CFD trajectory is extended by $t^*_\text{update}$ to harvest fresh snapshots, after which the pipeline is refitted concurrently while WaterLily keeps advancing $\mathcal{S}$}
-        \label{fig: retrain_parallel}
-    \end{subfigure}
-    % \hfill
-    \begin{subfigure}[t]{0.48\textwidth}
+     \begin{subfigure}[t]{0.48\textwidth}
         \adjustbox{scale=0.65,center}{\input{figures/Methodology/tikz_figures/retrain_flowchart_serial.tex}}
          \caption{Serial retraining: the same snapshot harvest is followed by a sequential refit of the pipeline with WaterLily paused, so the cost is charged directly to wall-time and the loop resumes only once retraining completes.}
      \label{fig: retrain_serial}
     \end{subfigure}
+    \begin{subfigure}[t]{0.48\textwidth}
+        \adjustbox{scale=0.65,center}{\input{figures/Methodology/tikz_figures/retrain_flowchart.tex}}
+        \caption{Parallel retraining: the CFD trajectory is extended by $t^*_\text{update}$ to harvest fresh snapshots, after which the pipeline is refitted concurrently while WaterLily keeps advancing $\mathcal{S}$}
+        \label{fig: retrain_parallel}
+    \end{subfigure}   
     \caption{Adaptive retraining under the two scheduling strategies.}
     \label{fig: retrain_comparison}
 \end{figure}
 
-The retraining phase is structured around a single design principle: rather than discarding the trained pipeline $\mathcal{P}^{(r)}=(\varphi_\theta^{(r)}, \psi_\theta^{(r)}, f_\phi^{(r)}, \mathcal{K}^{(r)}, \tau^{(r)})$ and learning a new one from scratch, the existing networks are fine-tuned on the augmented training set $\boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}$. This allows us to augment the existing training data with $\mathcal{T}_{u,\text{update}}$ from the same simulation, which shares the dominant statistical structure of the already-encoded data. This means that the existing weights $\theta^{(r)}, \phi^{(r)}$ have already been fitted to similar flow dynamics and do not need a high number of optimisation steps to update themselves to learn the newly seen flow dynamics. The following paragraphs will detail the exact meaning of the retrain flagging and the operations needed for a single retraining routine. 
-
+The retraining phase is structured around a single design principle: rather than discarding the trained pipeline $\mathcal{P}^{(r)}=(\varphi_\theta^{(r)}, \psi_\theta^{(r)}, f_\phi^{(r)}, \mathcal{K}^{(r)}, \tau^{(r)})$ and learning a new one from scratch, the existing networks are fine-tuned on the augmented training set $\boldsymbol{\mathcal{T}}_u^{(r+1)} = \boldsymbol{\mathcal{T}}_u^{(r)} \cup \mathcal{T}_{u,\text{update}}$. This allows the existing training data to be augmented with $\mathcal{T}_{u,\text{update}}$ from the same simulation, which shares the dominant statistical structure of the already-encoded data. This means that the existing weights $\theta^{(r)}, \phi^{(r)}$ have already been fitted to similar flow dynamics and do not need a high number of optimisation steps to update themselves to learn the newly seen flow dynamics. The following paragraphs will detail the exact meaning of the retrain flagging and the operations needed for a single retraining routine. 
 
 
 \subsubsection{Retrain flagging}
@@ -1043,7 +1033,7 @@ Where the new trajectory $\mathcal{T}_{u,\text{update}}$ has its own distinctive
 \subsubsection{Autoencoder Retraining}
 As mentioned before, after having augmented $\boldsymbol{\mathcal{T}_u}$ with new CFD snapshots, the weights $\theta$ of the autoencoder can be updated such that they are able to produce trustworthy latent trajectories on which the neural ODE can be trained. Essentially, the autoencoder retraining is done in the same way as the preliminary training of \autoref{sect: AEtraining}, the main difference being that the weights are not initialised from a random state but inherited from the converged parent model $\theta^{(k)}$.
 
-During retraining, the augmented snapshot set is again partitioned temporally into a training and validation pool and a held-out test pool, following the same convention as the initial training: the $20\%$ validation split monitors the loss at epoch level, while the test pool, drawn from the most recent snapshots, gauges generalisation beyond the training horizon. The partition of the augmented set is shown in \autoref{fig: augmented_forces}. The newly harvested trajectory $\mathcal{T}_{u,\text{update}}$ appears as the second training chunk near $t^* \approx 29$ and is temporally disjoint from the original window $t^* \in [0, 20]$. The empty patch in the middle of the forces indicates the range over which the neural ODE was rolling out latent trajectories and is not sampled as training data for retraining the models. 
+During retraining, the augmented snapshot set is again partitioned temporally into a training and validation pool and a held-out test pool, following the same convention as the initial training: the $20\%$ validation split monitors the loss at epoch level, while the test pool, drawn from the most recent snapshots, gauges generalisation beyond the training horizon. The partition of the augmented set is shown in \autoref{fig: augmented_forces}. The newly harvested trajectory $\mathcal{T}_{u,\text{update}}$ appears as the second training chunk near $t^* \approx 29$ and is temporally disjoint from the original window $t^* \in [0, 20]$. The empty patch in the middle of the forces indicates the range over which the neural ODE was rolled out to generate latent trajectories; these trajectories are not sampled as training data for retraining the models. 
 
 \begin{figure}[htbp]
     \centering

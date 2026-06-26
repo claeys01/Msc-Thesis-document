@@ -45,7 +45,7 @@
 % =====================================================================
 % TIMELINE BAR (laid out left-to-right by chaining anchors)
 % =====================================================================
-\node[warmup, minimum width=\L{warmup}]                  (warmup)  at (0,0) {Initial data-collection};
+\node[warmup, minimum width=\L{warmup}]                         (warmup)  at (0,0) {Gather $\mathcal{T}_{u,1}$};
 
 \node[warmup, minimum width=\L{gap1},   right=0pt of warmup]   (s0) {};
 \node[empty,  minimum width=\L{empty},  right=0pt of s0]       (e1) {\scriptsize $\mathcal{S}$ keeps running};
@@ -57,7 +57,7 @@
 \node[hybrid, minimum width=\L{solverC},right=0pt of nB]       (sC) {};
 \node[node,   minimum width=\L{nodeC},  right=0pt of sC]       (nC) {};
 
-\node[warmup, minimum width=\L{retrain},right=0pt of nC]       (sD) {Updating data};
+\node[warmup, minimum width=\L{retrain}, right=0pt of nC]       (sD) {Gather $\mathcal{T}_{u,2}$};
 \node[warmup, minimum width=\L{gap1},   right=0pt of sD]       (sE) {};
 \node[empty,  minimum width=\L{empty},  right=0pt of sE]       (e2) {\scriptsize $\mathcal{S}$ keeps running};
 
@@ -175,7 +175,7 @@
 \end{scope}
 
 \foreach \panel/\txt in {%
-  pW/Warmup,
+  pW/Initial data-collection,
   pT/Training,
   pH1/Hybrid loop,
   pR/Retraining,

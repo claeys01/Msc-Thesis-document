@@ -14,11 +14,11 @@
 \section{Experimental Setup and Conventions}
 \label{sect: 4_setup}
 
-Every hybrid run reported in this chapter is accompanied by a reference simulation $\mathcal{S}_\text{ref}$ that is advanced purely by WaterLily. The reference simulation is instantiated using the exact same initial condition of the hybrid simulation $u_0$ at $t^*=0$. This means that $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ are exact copies of each other in terms of grid, immersed geometry and time-stepping parameters, and are integrated with the same solver during each conventional CFD step. The reference simulation is never re-synchronised to the hybrid state: once the two share an initial condition, they evolve as two independent trajectories, with $\mathcal{S}_\text{ref}$ representing the outcome the conventional solver would have produced if there weren't any latent-space acceleration. This allows us to quantify the effects of the pipeline integrations, since the two simulations differ only in whether the latent dynamics $f_\phi$ are used to advance the simulation. 
+Every hybrid run reported in this chapter is accompanied by a reference simulation $\mathcal{S}_\text{ref}$ that is advanced purely by WaterLily. The reference simulation is instantiated using the exact same initial condition of the hybrid simulation $u_0$ at $t^*=0$. This initial condition is a saved flow state taken from a previously developed simulation, so the wake has already reached the fully developed, periodic vortex-shedding regime, and the trajectories are free of transient start-up effects. This means that $\mathcal{S}$ and $\mathcal{S}_\text{ref}$ are exact copies of each other in terms of grid, immersed geometry and time-stepping parameters, and are integrated with the same solver during each conventional CFD step. The reference simulation is never re-synchronised to the hybrid state: once the two share an initial condition, they evolve as two independent trajectories, with $\mathcal{S}_\text{ref}$ representing the outcome the conventional solver would have produced if there weren't any latent-space acceleration. This allows us to quantify the effects of the pipeline integrations, since the two simulations differ only in whether the latent dynamics $f_\phi$ are used to advance the simulation.
 
 The simulation clocks are kept aligned by monitoring the mismatch in $t^*$ across the simulations. After each update of $\mathcal{S}$, be it a numerical CFD step or a latent rollout, $\mathcal{S}_\text{ref}$ is advanced by repeated solver steps, governed by the CFL condition \cite{Weymouth2025}, until its convective time $t^*(\mathcal{S}_\text{ref})$ has caught up to that of the hybrid simulation, so the two are co-located in $t^*$ to within a single time step at every checkpoint.
 
-While both simulations are advancing in time, relevant mean flow components (time-averaged velocity, pressure, and velocity fluctuations) are stored using the WaterLily \texttt{MeanFlow} object. The mean flow components of the hybrid and the reference simulation are sampled at a fixed interval. It is important to note that during the latent rollout \ref{alg: predict_flex}, each new latent vector $\tilde{\mathbf{z}}$ that corresponds to the saving interval for the mean flow components is also saved, batched and decoded together with the final rollout prediction that has not been flagged as OOD by the KNN monitor, this assures that the mean flow components of the hybrid simulation are updated using the exact same amount of snapshots at the same $t^*$. 
+While both simulations advance in time, relevant mean flow components (time-averaged velocity, pressure, and velocity fluctuations) are stored in the WaterLily \texttt{MeanFlow} object. The mean flow components of the hybrid and reference simulations are sampled at fixed intervals. It is important to note that during the latent rollout (\autoref{alg: predict_flex}), each new latent vector $\tilde{\mathbf{z}}$ that corresponds to the saving interval for the mean flow components is also saved, batched and decoded together with the final rollout prediction that has not been flagged as OOD by the KNN monitor, this assures that the mean flow components of the hybrid simulation are updated using the exact same amount of snapshots at the same $t^*$. 
 
 \subsection{Comparison metrics} 
 \label{subsect: 4_metrics}
@@ -134,9 +134,8 @@ Following the autoencoder design choices highlighted in \ref{sect: AE}, a baseli
     \label{tab: 4_ae_config}
 \end{table}
 
-An interesting thing to note is the choice of $n_\text{dense}$, during hyperparameter optimization, the resulting score in \ref{tab: ae_grid_sweep} seemed to consistently favour a single dense bottleneck layer ($n_\text{dense}=1$) over deeper alternatives, this results in the dense stack in the encoder serving just as a linear compression from the last feature map $H_{n_\text{conv}}\!\cdot\! W_{n_\text{conv}}\!\cdot\!C_{n_\text{conv}}$ to the latent space. Meaning that, for this specific compression case, the encoder does not benefit from the additional ReLU nonlinearity from the intermediate dense compression steps. This aversion to additional ReLU activations could be caused by the fact that the flow that is being compressed contains negative velocities, which is information that is rectified to zero when passed through a ReLU activation function, as can be seen in Figure~\ref{fig: activations}. Because of these hard rectifications, negative components of the representation are discarded and cannot be recovered by the decoder, resulting in a loss of information and accuracy compared to the autoencoder. 
+An interesting thing to note is the choice of $n_\text{dense}$. During hyperparameter optimization, the resulting score in \ref{tab: ae_grid_sweep} consistently favoured a single dense bottleneck layer ($n_\text{dense}=1$) over deeper alternatives. This reduces the dense stack in the encoder to a linear compression from the last feature map $H_{n_\text{conv}}\!\cdot\! W_{n_\text{conv}}\!\cdot\! C_{n_\text{conv}}$ to the latent space, meaning the encoder gains nothing from the additional ReLU nonlinearity in the intermediate dense layers for this compression case. The reason is that the additional ReLU activations rectify the negative values of the latent dynamics to zero, as shown in \autoref{fig: activations}. These negatively signed latent dynamics are essentially lost and cannot be recovered by the encoder. This loss of latent information directly degrades reconstruction quality, which is why deeper dense stacks score worse in the sweep.
 
-% \todo{mss invoegen dat de keuze voor RElu uit de literature kwam \cite{Lu2025, Jeon2022, Glaws2020}, maar dat er niet veel literature beschikbaar is over vortex shedding met autoencoder}
 
 The choice for $n_\text{conv}$ shows that convolution up to a small spatial dimension (like in the example architecture in \ref{fig: encoder}) is also adversarial to autoencoder performance, showing how a feature map with small spatial dimensions can not contain enough information to accurately be compressed to a latent vector $\mathbf{z}$. Which is why the autoencoder tuning scheme preferred five $n_\text{conv}$ to the deeper options
 
@@ -229,21 +228,21 @@ Having established the parameters of the baseline hybrid simulation in \ref{subs
     \begin{subfigure}[t]{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/Results/base/bars_timing.png}
-        \caption{Mean wall-time cost per CTU. The hybrid loop is resolved into its conventional CFD and latent rollout contributions.}
+        \caption{Mean wall-time cost per CTU. The hybrid simulation is resolved into its conventional CFD and latent rollout contributions.}
         \label{fig: base_cost_ctu}
     \end{subfigure}
     \hfill
     \begin{subfigure}[t]{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/Results/base/bars_total.png}
-        \caption{Total wall time of the hybrid lbound, so its cost per CTU grows with grid size [128], whereas the rollout cost is fixed by the latentoop and the reference simulation over the same convective-time window.}
+        \caption{Total wall time of the hybrid and reference simulation over the same convective-time window.}
         \label{fig: base_cost_total}
     \end{subfigure}
     \caption{Comparison of reference simulation to the hybrid loop in terms of (a) cost per CTU and (b) actual wall time cost}
     \label{fig: hybrid_bars}
 \end{figure}
 
-Figure~\ref{fig: hybrid_bars} highlights how cheap a single rollout of $\mathcal{P}$ is compared to regular CFD integration. Using $\mathcal{P}$ to predict a single CTU is $84.6$ times cheaper than calculating the same time window using regular CFD timestepping. This bar chart, however, does not include wall time for the training processes of $\varphi_\theta$, $\psi_\theta$, and $f_\phi$. 
+\autoref{fig: hybrid_bars} highlights how cheap a single rollout of $\mathcal{P}$ is compared to regular CFD integration. Using $\mathcal{P}$ to predict a single CTU is $84.6$ times cheaper than calculating the same time window using regular CFD timestepping. This bar chart, however, does not include wall time for the training processes of $\varphi_\theta$, $\psi_\theta$, and $f_\phi$. 
 
 When comparing the total wall time over the same simulation window (Figure~\ref{fig: base_cost_total}), the hybrid loop is able to integrate $\mathcal{S}$ to $t^*_\text{end}$ in $58.85$ seconds compared to $\mathcal{S}_\text{ref}$ integrating the same time window in $86.63$ seconds. Which means the speedup achieved by the hybrid loop can be expressed as:
 \begin{equation}
