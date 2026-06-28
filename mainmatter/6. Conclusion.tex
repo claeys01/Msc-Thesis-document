@@ -34,6 +34,7 @@ The method is bound by a plethora of parameters that influence its accuracy and 
 
 With respect to sensitivity to architecture, the framework proves to be most sensitive to whatever sets the complexity of the latent dynamics $f_\phi$ has to learn. For example, the latent dimension size $N_z$. A narrower bottleneck simplifies those dynamics and allows for longer rollouts, but discards turbulent detail and so pollutes the reconstructed statistics, whereas a wider bottleneck recovers fidelity at the cost of acceleration. Architecture, therefore, does not have a single optimum but sets the position on the speed--fidelity trade, which is why a joint sweep is needed to locate it for a given accuracy target.
 
+\todo{say something about how the KNN monitor could be approved}
 
 \section{Recommendations and Future Work}
 \label{sect: conclusion_future}
