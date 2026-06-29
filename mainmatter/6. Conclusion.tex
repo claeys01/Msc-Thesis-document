@@ -14,7 +14,7 @@ The unfavourable base-case economics showed that the performance of $\mathcal{P}
 \section{Answering the Research Question}
 \label{sect: conclusion_rq}
 
-\noindent\textbf{How effectively can neural ordinary differential equations accelerate the time integration step in CFD solvers for turbulent flow simulations without compromising accuracy?}
+\noindent\textbf{How effectively can neural ordinary differential equations accelerate the time integration step in CFD solvers for unsteady flow simulations without compromising accuracy?}
 
 The central research question can be answered from two perspectives. The developed framework behaves differently depending on the time window used to assess its performance. When assessing the neural ODE rollout per step, the answer is a clear yes: once $\mathcal{P}$ is trained, the latent rollout integrates the flow more cheaply than the reference solver. The accuracy of the time integration is maintained not by the Neural ODE being uniformly accurate, but by the KNN monitor verifying if the rollout is not drifting away from the reference set. In that sense, the framework accelerates time integration \emph{and} maintains controllable accuracy, which is the result the research question sought.
 
@@ -22,9 +22,10 @@ Assessing the total cost of the framework is conditional and provides a more hon
 
 \subsection{Physical accuracy across regimes, Reynolds numbers and geometries}
 
-\noindent\textbf{To what extent can case-specific neural ODEs maintain physical accuracy across different turbulent flow regimes, Reynolds numbers, and geometric configurations (e.g.\ symmetric, asymmetric, irregular shapes)?}
 
-Across the tested regimes, accuracy was never compromised silently, as the monitor returned control to the solver whenever a rollout left the validated region. Transferring the architecture from the chaotic $Re=2500$ wake to the smoother $Re=250$ regime (\autoref{subsect: 4_re250}) and to the finer $512^2$ grid was executed with minimal loss of fidelity. The geometric axis, however, was not tested: every result was obtained on the circular cylinder, so accuracy holds across the Reynolds numbers and resolutions studied, but generalisation across geometry remains open and is left to future work. But transferring to a different geometry should be feasible with the current architecture, since this was kept in mind during development and is easily achievable using the BDIM method WaterLily employs. 
+\noindent\textbf{How well does the neural ODE acceleration framework preserve the flow’s statistical observables when transferred across Reynolds numbers and grid resolution?}
+
+% Across the tested regimes, accuracy was never compromised silently, as the monitor returned control to the solver whenever a rollout left the validated region. Transferring the architecture from the chaotic $Re=2500$ wake to the smoother $Re=250$ regime (\autoref{subsect: 4_re250}) and to the finer $512^2$ grid was executed with minimal loss of fidelity. The geometric axis, however, was not tested: every result was obtained on the circular cylinder, so accuracy holds across the Reynolds numbers and resolutions studied, but generalisation across geometry remains open and is left to future work. But transferring to a different geometry should be feasible with the current architecture, since this was kept in mind during development and is easily achievable using the BDIM method WaterLily employs. 
 
 \subsection{Sensitivity to architecture and training data quality}
 
@@ -32,9 +33,9 @@ Across the tested regimes, accuracy was never compromised silently, as the monit
 
 The method is bound by a plethora of parameters that influence its accuracy and behaviour, so a dedicated sensitivity study is a logical next step; current knowledge is limited to one-at-a-time sweeps around a single baseline. What those sweeps did make clear is that what matters most is how well the current simulation state is represented in the training trajectories $\boldsymbol{\mathcal{T}}_z$. Since $f_\phi$ and the KNN monitor both draw their logic from $\boldsymbol{\mathcal{T}}_z$, the rollout runs long when the active regime overlaps the training distribution and is flagged almost immediately when it does not. Rollout length is therefore a direct reflection of that overlap, and accuracy depends less on raw data volume than on whether the data covers the state the simulation currently occupies.
 
-With respect to sensitivity to architecture, the framework proves to be most sensitive to whatever sets the complexity of the latent dynamics $f_\phi$ has to learn. For example, the latent dimension size $N_z$. A narrower bottleneck simplifies those dynamics and allows for longer rollouts, but discards turbulent detail and so pollutes the reconstructed statistics, whereas a wider bottleneck recovers fidelity at the cost of acceleration. Architecture, therefore, does not have a single optimum but sets the position on the speed--fidelity trade, which is why a joint sweep is needed to locate it for a given accuracy target.
+With respect to sensitivity to architecture, the framework is most sensitive to whatever determines the complexity of the latent dynamics $f_\phi$ must learn. For example, the latent dimension size $N_z$. A narrower bottleneck simplifies those dynamics and allows for longer rollouts, but discards wake detail, thereby polluting the reconstructed statistics, whereas a wider bottleneck recovers fidelity at the cost of acceleration. Architecture, therefore, does not have a single optimum but sets the position on the speed--fidelity trade, which is why a joint sweep is needed to locate it for a given accuracy target.
 
-\todo{say something about how the KNN monitor could be approved}
+\subsection{Controlling the physical integrity of the acceleration framework}
 
 \section{Recommendations and Future Work}
 \label{sect: conclusion_future}
