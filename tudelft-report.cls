@@ -37,8 +37,8 @@
 \RequirePackage[
     pdfusetitle,
     colorlinks=true,
-    linkcolor=blue,
-    citecolor=blue,
+    linkcolor=black,
+    citecolor=black,
     urlcolor=blue, 
     pdftitle={Thesis - Matthias Claeys},
     pdfauthor={Matthias Claeys},

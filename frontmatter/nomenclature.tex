@@ -29,83 +29,119 @@
     MAE    & Mean Absolute Error \\
     ML     & Machine Learning \\
     MLP    & Multilayer Perceptron \\
+    MSE    & Mean Squared Error \\
     NN     & Neural Network \\
     NODE   & Neural Ordinary Differential Equation \\
+    NSE    & Navier--Stokes Equations \\
     ODE    & Ordinary Differential Equation \\
+    OFAT   & One-Factor-at-a-Time \\
     OOD    & Out-of-Distribution \\
     PDE    & Partial Differential Equation \\
+    PINN   & Physics-Informed Neural Network \\
     POD    & Proper Orthogonal Decomposition \\
+    PPE    & Pressure-Poisson Equation \\
     RANS   & Reynolds-Averaged Navier--Stokes \\
     RMS    & Root Mean Square \\
     ROM    & Reduced-Order Model \\
+    RST    & Reynolds-Stress Tensor \\
     \bottomrule
 \end{longtable}
 
 \pagebreak
 \section*{Symbols}
-All variables presented are non-dimensional, unless stated otherwise. 
+All variables presented are non-dimensional, unless stated otherwise.
 
 \begin{longtable}{p{2.5cm}p{9cm}p{2.5cm}}
     \toprule
     Symbol & Definition & Unit \\
     \midrule\endhead % Latin symbols
-    $C_\text{base}$      & Base channel count of the autoencoder        & [--] \\
-    $C_\text{in}$        & Number of input channels                     & [--] \\
-    $C_D$                & Drag coefficient                             & [--] \\
-    $C_L$                & Lift coefficient                             & [--] \\
-    $C_L^\text{rms}$     & Root-mean-square lift coefficient            & [--] \\
-    $d$                  & Signed-distance function to the body surface & [--] \\
+    $C_\text{base}$      & Base channel count of the autoencoder            & [--] \\
+    $C_\text{in}$        & Number of input channels                         & [--] \\
+    $C_D$                & Drag coefficient                                 & [--] \\
+    $C_L$                & Lift coefficient                                 & [--] \\
+    $C_L^\text{rms}$     & Root-mean-square lift coefficient                & [--] \\
+    $d$                  & Signed-distance function to the body surface     & [--] \\
     $d_k$                & KNN score (mean distance to the $k$ nearest neighbours) & [--] \\
-    $D$                  & Cylinder diameter                            & [--] \\
-    $f_\phi$             & Neural ODE; learned latent dynamics network  & [--] \\
-    $k$                  & Number of nearest neighbours (OOD monitor)   & [--] \\
-    $L_1$                & $L_1$ (mean-absolute) reconstruction loss    & [--] \\
-    $n$                  & Number of spatial dimensions                 & [--] \\
-    $n_\text{conv}$      & Number of convolutional blocks               & [--] \\
-    $n_\text{dense}$     & Number of dense bottleneck layers            & [--] \\
-    $n_s$                & Multiple-shooting group size                 & [--] \\
-    $n_\text{switch}$    & Prediction cadence (CFD steps between attempts) & [--] \\
-    $\bar{n}_\text{roll}$ & Average rollout length                      & [--] \\
-    $N_s$                & Number of shooting segments                  & [--] \\
-    $N_u$                & Number of velocity components                & [--] \\
-    $N_x,\,N_y$          & Number of grid points in $x$, $y$            & [--] \\
-    $N_z$                & Latent-space dimension                       & [--] \\
-    $N_\Omega$           & Number of fluid cells in the domain          & [--] \\
-    $p$                  & Pressure                                     & [--] \\
+    $D$                  & Cylinder diameter                                & [--] \\
+    $E$                  & Number of autoencoder training epochs            & [--] \\
+    $f_\phi$             & Neural ODE; learned latent dynamics network      & [--] \\
+    $k$                  & Number of nearest neighbours (OOD monitor)       & [--] \\
+    $L$                  & Characteristic length scale ($=D$)               & [--] \\
+    $L_1$                & $L_1$ (mean-absolute) reconstruction loss        & [--] \\
+    $L_x,\,L_y$          & Domain width and height                          & [--] \\
+    $\mathcal{L}$        & Loss / objective function                        & [--] \\
+    $\mathcal{L}_\text{data},\,\mathcal{L}_\text{physics}$ & Data and physics terms of a physics-informed loss & [--] \\
+    $\mathcal{L}_\text{div},\,\mathcal{L}_\text{curl}$ & Divergence and vorticity (curl) loss terms & [--] \\
+    $\mathcal{L}_\text{ms}$ & Multiple-shooting loss                        & [--] \\
+    $n$                  & Number of spatial dimensions                     & [--] \\
+    $n_\text{conv}$      & Number of convolutional blocks                   & [--] \\
+    $n_\text{dense}$     & Number of dense bottleneck layers                & [--] \\
+    $n_s$                & Multiple-shooting group size                     & [--] \\
+    $n_\text{switch}$    & Prediction cadence (CFD steps between attempts)  & [--] \\
+    $\bar{n}_\text{roll}$ & Average rollout length                          & [--] \\
+    $N_s$                & Number of shooting segments                      & [--] \\
+    $N_u$                & Number of velocity components                    & [--] \\
+    $N_x,\,N_y$          & Number of grid points in $x$, $y$                & [--] \\
+    $N_z$                & Latent-space dimension                           & [--] \\
+    $N_\Omega$           & Number of fluid cells in the domain              & [--] \\
+    $p$                  & Pressure                                         & [--] \\
     $\mathcal{P}$        & Trained pipeline (autoencoder, NODE, KNN monitor) & [--] \\
-    $q$                  & Threshold quantile of the OOD monitor        & [--] \\
-    $Re$                 & Reynolds number                              & [--] \\
-    $S_\text{eff}$       & Effective speedup (including training cost)  & [--] \\
-    $S_\text{loop}$      & Inference-loop speedup                       & [--] \\
-    $t$                  & Time                                         & [s] \\
-    $t^*$                & Non-dimensional (convective) time            & [--] \\
-    $T_\text{wall}$      & Wall-clock time                              & [s] \\
-    $u_i,\,\mathbf{u}$   & Velocity component / field                   & [m/s] \\
-    $\hat{\mathbf{u}}$   & Reconstructed (decoded) velocity field       & [m/s] \\
-    $U$                  & Free-stream / characteristic velocity        & [m/s] \\
-    $V_i$                & Prescribed body velocity                     & [m/s] \\
+    $q$                  & Threshold quantile of the OOD monitor            & [--] \\
+    $Re$                 & Reynolds number                                  & [--] \\
+    $\mathcal{S},\,\mathcal{S}_\text{ref}$ & Hybrid and reference simulation & [--] \\
+    $S_\text{eff}$       & Effective speedup (including training cost)      & [--] \\
+    $S_\text{loop}$      & Inference-loop speedup                           & [--] \\
+    $t$                  & Time                                             & [s] \\
+    $t^*$                & Non-dimensional (convective) time                & [--] \\
+    $T_\text{wall}$      & Wall-clock time                                  & [s] \\
+    $T_\text{wall}^\text{ref}$ & Reference-solver wall time                 & [s] \\
+    $T_\text{wall}^\text{h,\,tot}$ & Total hybrid wall time (excluding training) & [s] \\
+    $T_\text{wall}^\text{h,\,training}$ & Network-training wall time         & [s] \\
+    $u_i,\,\mathbf{u}$   & Velocity component / field                       & [m/s] \\
+    $\hat{\mathbf{u}}$   & Reconstructed (decoded) velocity field           & [m/s] \\
+    $U$                  & Free-stream / characteristic velocity            & [m/s] \\
+    $V_i$                & Prescribed body velocity                         & [m/s] \\
+    $\mathbf{x}$         & Spatial coordinate (position vector)             & [--] \\
     $\mathbf{x}_\text{in}$ & Augmented network input $[\mathbf{u}\,;\,\boldsymbol{\mu}_0]$ & [--] \\
-    $\mathbf{z}$         & Latent state vector                          & [--] \\
-    $\tilde{\mathbf{z}}$ & Predicted latent state vector                & [--] \\
-    \midrule % Greek symbols
-    $\varepsilon$        & Mean absolute error (field metric)           & [--] \\
-    $\epsilon$           & Boundary-immersion thickness                 & [--] \\
-    $\eta$               & Learning rate                                & [--] \\
-    $\theta$             & Autoencoder (encoder/decoder) weights        & [--] \\
-    $\lambda$            & Weight decay                                 & [--] \\
-    $\lambda_c$          & Continuity weight (multiple shooting)        & [--] \\
-    $\lambda_\text{div}$ & Divergence loss weight                       & [--] \\
-    $\lambda_\text{curl}$ & Curl (vorticity) loss weight                & [--] \\
-    $\boldsymbol{\mu}_0,\,\boldsymbol{\mu}_0^\epsilon$ & Zeroth kernel moment; body-geometry field & [--] \\
-    $\nu$                & Kinematic viscosity                          & [m$^2$/s] \\
-    $\rho$               & Spatial correlation coefficient              & [--] \\
-    $\tau$               & OOD threshold on the KNN score               & [--] \\
-    $\varphi_\theta$     & Encoder                                      & [--] \\
-    $\phi$               & Neural ODE weights                           & [--] \\
-    $\psi_\theta$        & Decoder                                      & [--] \\
-    $\omega$             & Vorticity                                    & [1/s] \\
-    $\Delta t^*$         & Non-dimensional latent integration step      & [--] \\
+    $x_c,\,y_c$          & Cylinder-centre coordinates                      & [--] \\
+    $\mathbf{z}$         & Latent state vector                              & [--] \\
+    $\tilde{\mathbf{z}}$ & Predicted latent state vector                    & [--] \\
     $\boldsymbol{\mathcal{T}}_z$ & Set of encoded training latent trajectories & [--] \\
-    $\Omega$             & Fluid domain                                 & [--] \\
+    $\tilde{\boldsymbol{\mathcal{T}}}_z$ & Rolled-out (predicted) latent trajectory set & [--] \\
+    \midrule % Greek symbols
+    $\varepsilon$        & Mean absolute error (field metric)               & [--] \\
+    $\epsilon$           & Boundary-immersion thickness                     & [--] \\
+    $\eta$               & Learning rate                                    & [--] \\
+    $\theta$             & Autoencoder (encoder/decoder) weights            & [--] \\
+    $\lambda$            & Weight decay                                     & [--] \\
+    $\lambda_c$          & Continuity weight (multiple shooting)            & [--] \\
+    $\lambda_{c,r}$      & Retraining continuity weight                     & [--] \\
+    $\lambda_d,\,\lambda_p$ & Data and physics weights (general physics-informed loss) & [--] \\
+    $\lambda_\text{div}$ & Divergence loss weight                           & [--] \\
+    $\lambda_\text{curl}$ & Curl (vorticity) loss weight                    & [--] \\
+    $\boldsymbol{\mu}_0,\,\boldsymbol{\mu}_0^\epsilon$ & Zeroth kernel moment; body-geometry field & [--] \\
+    $\nu$                & Kinematic viscosity                              & [m$^2$/s] \\
+    $\rho$               & Spatial correlation coefficient                  & [--] \\
+    $\tau$               & OOD threshold on the KNN score                   & [--] \\
+    $\varphi_\theta$     & Encoder                                          & [--] \\
+    $\phi$               & Neural ODE weights                               & [--] \\
+    $\psi_\theta$        & Decoder                                          & [--] \\
+    $\omega$             & Vorticity                                        & [1/s] \\
+    $\Delta t^*$         & Non-dimensional latent integration step          & [--] \\
+    $\Omega$             & Fluid domain                                     & [--] \\
+    \bottomrule
+\end{longtable}
+
+% \pagebreak
+\section*{Operators and conventions}
+
+\begin{longtable}{p{2.5cm}p{10cm}}
+    \toprule
+    Notation & Meaning \\
+    \midrule\endhead
+    $\langle\,\cdot\,\rangle$ & Time average \\
+    $(\,\cdot\,)'$            & Fluctuating component (deviation from the time average) \\
+    $\hat{(\,\cdot\,)}$       & Reconstructed / decoded quantity \\
+    $\tilde{(\,\cdot\,)}$     & Predicted (rolled-out) quantity \\
     \bottomrule
 \end{longtable}

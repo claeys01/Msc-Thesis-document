@@ -1,7 +1,10 @@
 \chapter{Results}
 \label{chap: Results}
 
-\todo{add chapter introduction}
+The preceding chapter assembled the hybrid pipeline: the convolutional autoencoder, the latent neural ODE, the out-of-distribution monitor, and the WaterLily coupling. This chapter describes how the pipeline behaves when it runs. Every result is measured against a reference simulation advanced purely by WaterLily from the same initial condition, so that the comparison isolates the effect of the latent-space acceleration alone.
+
+The chapter is organised into four parts. \autoref{sect: 4_setup} defines the experimental conventions: how the hybrid and reference simulations are kept co-located in time, how the workflow is mapped onto the available hardware, and the accuracy and acceleration metrics against which all subsequent results are reported. \autoref{sect: 4_base_hybrid} characterises the base operating point in full, reporting the integrated loading, the time-averaged flow and Reynolds stresses, the latent dynamics, and the wall-time breakdown from which the two acceleration metrics follow. \autoref{sect: 4_p_parameters} then isolates the hyperparameters that most strongly govern the speed--fidelity trade-off, varying each in turn about the baseline to justify the adopted values and to expose the trade-offs they control. Finally, \autoref{sect: 4_generalisation} steps away from the base point, lowering the Reynolds number to a cleaner shedding regime and raising it on a refined grid to assess how acceleration and physical fidelity respond to the flow regime and grid resolution.
+
 
 \section{Experimental Setup and Conventions}
 \label{sect: 4_setup}
@@ -537,7 +540,7 @@ The absolute-difference fields (\autoref{fig: base_diff_mean_u} \& \autoref{fig:
 
 \subsubsection{Reynolds Stress Components}
 
-Having computed the time-averaged velocity components, the time-averaged fluctuations of the flow can also be assessed. Using \eqref{eq: ReDecompose}, fluctuating velocity components are extracted and studied to assess the effect of the rollouts on the fluctuating field of $\mathcal{S}$. This allows the three independent components of the Reynolds-stress tensor (RST) to be compared against the reference. Where the normal stresses $\langle u'u'\rangle$ and $\langle v'v'\rangle$ display the energy of the streamwise and transverse fluctuations, and the shear stress $\langle u'v'\rangle$ indicates the momentum transport across the wake.
+Having computed the time-averaged velocity components, the time-averaged fluctuations of the flow can also be assessed. Using \autoref{eq: ReDecompose}, fluctuating velocity components are extracted and studied to assess the effect of the rollouts on the fluctuating field of $\mathcal{S}$. This allows the three independent components of the Reynolds-stress tensor (RST) to be compared against the reference. Where the normal stresses $\langle u'u'\rangle$ and $\langle v'v'\rangle$ display the energy of the streamwise and transverse fluctuations, and the shear stress $\langle u'v'\rangle$ indicates the momentum transport across the wake.
 
 
 \begin{figure}[htbp]
@@ -1095,7 +1098,7 @@ An important point about the stricter rollout gating is that the monitor at $q=0
 
 
 \section{Generalisation}
-\label{sect: 4_generalization}
+\label{sect: 4_generalisation}
 The results presented so far were obtained at a single operating point, namely the cylinder wake at $Re = 2500$ on a $256 \times 256$ grid, a regime deliberately chosen to test the limits of the autoencoder and neural ODE under a manageable computational cost. This section steps away from that point to inspect how the achieved acceleration and physical fidelity respond to the two parameters that define the problem, the flow regime and the grid resolution.  The Reynolds number is first reduced to a lower shedding regime to assess the pipeline's behaviour, where the dynamics are simpler and more periodic. Following this, the grid is refined and the Reynolds number is doubled to $Re=5000$ to stress test how the achieved acceleration scales with problem size and how the framework handles more complex flow dynamics. 
 
 Unless stated otherwise, all parameters are kept identical to those of the base case reported in \autoref{sect: 4_setup}; the autoencoder architecture, latent dimension $N_z = 16$, the multiple-shooting settings ($n_s = 15$, $\lambda_c= 200$), and the KNN monitor calibration are left unchanged, so that any difference in the results below is just an effect of the change in flow regime or grid resolution alone.
@@ -1510,5 +1513,5 @@ The latent dynamics at the $Re=5000$, $512^2$ operating point expose a contradic
 
 %-------------------------------------------------------------------------------------------------------------
 
-% \input{mainmatter/Appendix/C. Finer generalization (redacted)}
+% \input{mainmatter/Appendix/C. Finer generalisation (redacted)}
 
