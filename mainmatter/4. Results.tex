@@ -1099,7 +1099,7 @@ An important point about the stricter rollout gating is that the monitor at $q=0
 
 \section{Generalisation}
 \label{sect: 4_generalization}
-The results presented so far were obtained at a single operating point, namely the cylinder wake at $Re = 2500$ on a $256 \times 256$ grid, a regime deliberately chosen to test the limits of the autoencoder and neural ODE under a manageable computational cost. This section steps away from that point to inspect how the achieved acceleration and physical fidelity respond to the two parameters that define the problem, the flow regime and the grid resolution.  The Reynolds number is first reduced to a lower shedding regime to assess the pipeline's behaviour, where the dynamics are simpler and more periodic. The grid is then refined at fixed $Re$ to examine how the achieved acceleration scales with problem size. Together, the two experiments characterise the behaviour of the accelerator on either side of the point at which it was developed.
+The results presented so far were obtained at a single operating point, namely the cylinder wake at $Re = 2500$ on a $256 \times 256$ grid, a regime deliberately chosen to test the limits of the autoencoder and neural ODE under a manageable computational cost. This section steps away from that point to inspect how the achieved acceleration and physical fidelity respond to the two parameters that define the problem, the flow regime and the grid resolution.  The Reynolds number is first reduced to a lower shedding regime to assess the pipeline's behaviour, where the dynamics are simpler and more periodic. Following this, the grid is refined and the Reynolds number is doubled to $Re=5000$ to stress test how the achieved acceleration scales with problem size and how the framework handles more complex flow dynamics. 
 
 Unless stated otherwise, all parameters are kept identical to those of the base case reported in \autoref{sect: 4_setup}; the autoencoder architecture, latent dimension $N_z = 16$, the multiple-shooting settings ($n_s = 15$, $\lambda_c= 200$), and the KNN monitor calibration are left unchanged, so that any difference in the results below is just an effect of the change in flow regime or grid resolution alone.
 
@@ -1222,6 +1222,11 @@ where the training wall time cost $T_\text{wall}^\text{h, training} = \SI{21.1}{
 \subsection{Re 5000}
 \label{subsect: 4_RE5000}
 
+As established in \autoref{subsect: 4_wall_time}, the per-CTU advantage of the latent rollout is tied to the base-case resolution: since the WaterLily solver is memory-bound, its cost per CTU grows with the grid size~\cite{Weymouth2025}, whereas a single rollout of $\mathcal{P}$ is fixed by the latent dimension $N_z = 16$ and is independent of the grid. The $256^2$ baseline used throughout this work is therefore a comparatively inexpensive and dynamically simple case for demonstrating the gain. To assess the hybrid loop on a simultaneously more expensive and more demanding regime, the reference case is re-run with an increase in Reynolds number to $Re = 5000$ and the grid refined to $512^2$, keeping the domain and cylinder geometry of \autoref{tab: parameters} fixed. These two changes act on different parts of the framework. The finer grid raises the cost per CTU of the reference solver while leaving the rollout cost untouched, which should widen the achievable acceleration margin, whereas the higher Reynolds number drives the wake from the quasi-periodic shedding of the baseline towards a more complex shedding state with sharper near-body shear layers and more complex structures in the wake, as displayed in \autoref{fig: RE5000_vortex_shedding}. 
+
+% The following paragraphs quantify both effects in turn: how the combined refinement shifts the cost per CTU and the resulting upper bound on the speedup, and how the more chaotic wake stresses the reconstruction and the integrated force statistics on which the hybrid loop is assessed.
+
+
 \begin{figure}[htbp]
     \centering
     \begin{subfigure}[b]{0.19\textwidth}
@@ -1244,56 +1249,65 @@ where the training wall time cost $T_\text{wall}^\text{h, training} = \SI{21.1}{
         \includegraphics[width=\textwidth]{figures/Results/RE5000/cover/vorticity_t004.50.png}
         \caption{$t^*_{n+ 4\Delta t}$}
     \end{subfigure}
-    \caption{Vorticity field $\omega \nicefrac{L}{U}$ of five consecutive snapshots at $Re=5000$. Indicating positive (red) and negative (blue) vorticity. The refined grid and higher Reynolds number result in complex wake structures that are more sharply resolved than the $256^2$ baseline.}
+    \caption{Vorticity field $\omega \nicefrac{L}{U}$ of five consecutive snapshots at $Re=5000$. Indicating positive (red) and negative (blue) vorticity. The refined grid and higher Reynolds number result in more complex wake structures that are more sharply resolved than those of the $256^2$ baseline.}
     \label{fig: RE5000_vortex_shedding}
 \end{figure}
 
 \subsubsection{Wall time performance}
 
-\begin{table}[H]
+Following the wall-clock breakdown in \autoref{subsect: 4_wall_time}, the $Re=5000$ hybrid simulation is broken down into its segments, whose wall times are presented in \autoref{tab: wall_timing_hybrid_re5000}. Just as in the base simulation, the initial autoencoder training consumes a very high fraction of $\mathcal{S}$'s total wall time, just over $50\%$ of the total, and once the two retraining cycles are added, building and updating the networks accounts for close to $90\%$ of the $3217$~s pipeline. The initial data-gathering, the initial data-gathering, and the three snapshot-gathering runs make up most of what remains, while the latent rollouts themselves contribute well under $1\%$; the only non-negligible inference-loop cost is the single extended CFD stretch in the second hybrid section (\SI{92.3}{\second}), where the OOD monitor held control with the solver rather than the rollout.
+
+\begin{table}[htbp]
     \centering
     \begin{tabular}{llrr}
         \toprule
         Phase & Component & Time (s) & \% of total \\
         \midrule
-        Warmup & -- & 84.77 & 2.60 \\
+        Initial data-gathering & -- & 84.77 & 2.64 \\
         \midrule
-        \multirow{2}{*}{Train} & AE   & 1662.00 & 50.89 \\
-                               & NODE &  222.00 &  6.80 \\
+        \multirow{2}{*}{Train} & AE   & 1662.00 & 51.66 \\
+                               & NODE &  222.00 &  6.90 \\
         \midrule
         \multirow{3}{*}{Hybrid section 1} & CFD + rollout & 3.781 & 0.12 \\
                                           & CFD + rollout & 4.066 & 0.13 \\
                                           & CFD + rollout & 3.986 & 0.12 \\
         \midrule
-        \multirow{3}{*}{Retrain 1} & Gather snapshots &  52.57 &  1.61 \\
-                                   & AE               & 348.00 & 10.66 \\
-                                   & NODE             & 156.00 &  4.78 \\
+        \multirow{3}{*}{Retrain 1} & Gather snapshots &  52.57 &  1.63 \\
+                                   & AE               & 348.00 & 10.82 \\
+                                   & NODE             & 156.00 &  4.85 \\
         \midrule
         \multirow{3}{*}{Hybrid section 2} & CFD + rollout & 0.038 & 0.00 \\
                                           & CFD + rollout & 3.959 & 0.12 \\
-                                          & CFD + rollout & 92.292 & 2.83 \\
+                                          & CFD + rollout & 4.776 & 0.15 \\
         \midrule
-        \multirow{3}{*}{Retrain 2} & Gather snapshots &  50.30 &  1.54 \\
-                                   & AE               & 390.00 & 11.94 \\
-                                   & NODE             & 192.00 &  5.88 \\
+        \multirow{3}{*}{Retrain 2} & Gather snapshots &  50.30 &  1.56 \\
+                                   & AE               & 390.00 & 12.12 \\
+                                   & NODE             & 192.00 &  5.97 \\
         \midrule
-        \multirow{3}{*}{Hybrid section 3} & CFD + rollout & 0.148 & 0.01 \\
+        \multirow{3}{*}{Hybrid section 3} & CFD + rollout & 0.148 & 0.00 \\
                                           & CFD + rollout & 4.223 & 0.13 \\
-                                          & CFD + rollout & 5.002 & 0.15 \\
+                                          & CFD + rollout & 5.002 & 0.16 \\
         \midrule
-        Retrain 3 & Gather snapshots & 29.69 & 0.91 \\
+        Retrain 3 & Gather snapshots & 29.69 & 0.92 \\
         \midrule
-        \textbf{Total} & & \textbf{3265.91} & \textbf{100.00} \\
+        \textbf{Total} & & \textbf{3217.31} & \textbf{100.00} \\
         \bottomrule
     \end{tabular}
     \caption{Wall-clock breakdown of the hybrid simulation pipeline ($Re=5000$ run).}
     \label{tab: wall_timing_hybrid_re5000}
 \end{table}
 
+
+As mentioned, the rollout cost barely changes with the grid. It is fixed by the latent dimension $N_z = 16$ and stays around $48$~ms/CTU, the same order as the base run, because it never touches the full field. The WaterLily time integrations, on the other hand, now cost $4842$~ms/CTU, against $866$~ms/CTU at $256^2$. This large cost difference between rollout and CFD is even more noticeable when inspecting the acceleration metrics, $S_\text{loop}$: 
+
+
 \begin{align}
   S_\text{loop} = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot}}
   = \frac{\SI{651.83}{\second}}{\SI{314.94}{\second}} = 2.07,
 \end{align}
+
+Showing that the hybrid loop uses the low-cost rollouts to its full effect, where it is able to achieve a $2.07$ speedup compared to the reference simulation. To assess the speedup of the hybrid loop compared to the training cost of the ML components of $\mathcal{P}$, the training wall time is added to the comparison in $S_\text{eff}$ with $T_\text{wall}^\text{h, training} = 3042$~s of training.
+
 
 \begin{align}
   S_\text{eff}
@@ -1301,7 +1315,97 @@ where the training wall time cost $T_\text{wall}^\text{h, training} = \SI{21.1}{
   = \frac{\SI{651.83}{\second}}{\SI{314.94}{\second} + \SI{3042}{\second}} \approx 0.19,
 \end{align}
 
+A single finer run is therefore still much slower than simply running $\mathcal{S}_\text{ref}$, because the training cost is not repaid within one simulation window. But it still performs better than the base case, which achieved an effective speedup of $0.073$, indicating that refining the grid begins to close part of the gap between the full pipeline and running the reference simulation. 
+
+At a lower resolution, this demonstrates that the cost of the framework is dominated by one-off training rather than by the accelerated integration: the inference loop is already cheaper than the reference, and the more expensive the reference, the larger that margin becomes. Closing the remaining gap to break-even no longer requires a faster rollout; it requires either reusing the trained $\mathcal{P}$ across runs or overlapping training with the live simulation, together with a less strict integration monitor to convert the available loop speedup into realised wall-time savings.
+
 \subsubsection{Spatial and physical fidelity}
+The finer simulation is passed to $\mathcal{P}$ without any architectural change: the architectures of $\varphi_\theta$, $\psi_\theta$ and $f_\phi$ of \autoref{sect: 4_base_hybrid} are reused as-is. The only change to the architecture is the input and output dimensions of the autoencoder, so that they can correctly pass the new, finer grid down to the latent space without dimension mismatches. An advantage of the grid refinement is that the decoder's fixed cell-width smoothing now spans half the physical width, compared to the base architecture. This means that the thin separating shear layers that dominated the base-grid reconstruction error (\autoref{fig: base_velocity_comp}) are resolved by roughly twice as many cells and blurred less in physical space. Because the autoencoder can now capture finer dynamics to a much greater degree, the cost function converges much faster on the validation set, as displayed in \autoref{fig: RE5000_loss}
+
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/RE5000/loss_evolution.pdf}
+\caption{Initial training history of the autoencoder at the $Re=5000$, $512^2$ operating point. Left axis ($\mathcal{L}$, logarithmic): total loss on the train, validation and test splits, together with the divergence ($\nabla\!\cdot\mathbf{u}$) and vorticity ($\omega$) penalties evaluated on the test split. Right axis ($\rho$): reconstruction correlation coefficients $\rho_u$, $\rho_v$ on train and test. The validation and test losses converge to  $9.6\times10^{-3}$ and $8.9\times10^{-2}$ respectively, the persistent gap between them marking the autoencoder's failure to generalise to the more chaotic wake.}
+\label{fig: RE5000_loss}
+\end{figure}
+
+% $8.6\times10^{-3}$ and $1.2\times10^{-2}$.}
+
+Comparing the first autoencoder training to that of the base case in \autoref{fig: initial_training_base}, the AE is able to achieve a lower loss on the train and validation set, but the poor performance of the test set proves that the more chaotic wake, due to the increased Reynolds number, is not captured by the train/validation window alone. The gap between the converged train/validation loss and the test loss is markedly wider than the factor of two seen at base resolution, indicating that the held-out window $t^*\in[17.5,\,20]$ contains wake states the autoencoder has not encountered during training. Whereas the base-case wake repeats structures that the network has already learnt, the $Re=5000$ test split presents the autoencoder with spatial configurations not represented in the earlier shedding cycles, so $\varphi_\theta$ and $\psi_\theta$ generalise poorly beyond the training horizon despite the lower in-sample loss. The lower train/validation loss is therefore not evidence of a better fit but of a wake whose aperiodicity the four training cycles cannot span: the autoencoder reconstructs what it has seen more tightly, yet fails to extrapolate to unseen states, which, for a wake this chaotic, makes generalisation intrinsically harder.
+
+However, \autoref{fig: RE5000_loss} shows that the early plateau of the autoencoder training shows that a large part of the training budget is spent unnecessarily. Unlike the base case, the test loss barely changes over the performed epochs; it settles at its higher level within the first $\sim\!100$ epochs and does not improve thereafter, so the remaining epochs only tighten the in-sample fit without recovering any accuracy on the held-out window. Because the generalisation performance at this Reynolds number is set by the spatial information contained in the training set rather than by the length of training, the epochs spent past the plateau buy nothing on the unseen wake states and can be removed at no cost to the test-set reconstruction. Since the initial autoencoder consumes just over half of the workflow budget (\autoref{tab: wall_timing_hybrid_re5000}), early-stopping it at the convergence knee, together with the same reduction applied to the two retraining cycles, translates directly into a higher effective speedup. If the initial autoencoder were trained for only $\sim\!100$ epochs, and the retraining runs cut to the same fraction, the complete training time would fall from \SI{3042}{\second} to roughly \SI{1100}{\second} while leaving the reconstruction accuracy unchanged, since that accuracy was already reached at the plateau. This yields a projected effective speedup of:
+
+\begin{align}
+  S_\text{eff}
+  = \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
+  = \frac{\SI{651.83}{\second}}{\SI{314.94}{\second} + \SI{1100}{\second}} \approx 0.46,
+\end{align}
+
+This speedup value shows that trimming the autoencoder training schedule alone moves $S_\text{eff}$ from $0.19$ using the initial training scheme to $0.46$, an order-of-magnitude gain that moves the integrated workflow from roughly ten times slower than the reference to within a factor of two of break-even, without touching the inference loop itself. It demonstrates that the cost of the framework is dominated by one-off training rather than by the accelerated integration: the inference loop is already cheaper than the reference, and the finer the grid, the larger that margin becomes. A single from-scratch run does not yet break even, but closing the remaining gap no longer requires a faster rollout; it requires either better use of the trained $\mathcal{P}$ across runs or overlapping training with the live simulation, together with a less strict integration monitor and switching schedule to convert the available loop speedup into actual wall-time savings
+
+However, it is important to stress that this trimming does not improve the physical fidelity of the run; the generalisation gap and the force errors it produces are unchanged. The speedup is recovered by stopping at the same accuracy sooner, not by reaching a better one.
+
+
+As the generalisation gap in \autoref{fig: RE5000_loss} indicates, $\mathcal{P}$ will not generalise well outside of the training set, because the test loss of the AE sets the ceiling of the achievable accuracy of the acceleration framework. Where this becomes physically visible is the loading on the cylinder: a faithful velocity reconstruction is the prerequisite for the hybrid loop to reproduce the forces accurately, since the coefficients are computed from the decoded velocity $\hat{\mathbf{u}}$, so the near-body reconstruction error feeds directly into the pressure projection and the integrated force. At $Re=5000$ this reconstruction is no longer faithful, and the consequence is shown in \autoref{fig: RE5000_forces}, where the hybrid force coefficients are compared against the reference over the simulation window.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{figures/Results/RE5000/hybrid_forces.pdf}
+    \caption{Lift ($C_L$) and drag ($C_D$) coefficients over $t^*$ for the $Re=5000$, $512^2$ hybrid run. Reference (dash-dotted) against the hybrid loop (solid); the black trace is a single unaided rollout from $t^*=0$ with no OOD resets. Green bands mark the training region, blue bands the hybrid regions. The mean drag is held across the window, but the lift loses both amplitude and shedding signature within the hybrid regions.}    
+    \label{fig: RE5000_forces}
+\end{figure}
+
+
+\autoref{fig: RE5000_forces} shows that the hybrid loop holds the time-mean drag but fails to reproduce the lift fluctuation: within the hybrid regions, the $C_L$ trace drifts in both amplitude and phase, and the unaided black rollout diverges from the reference entirely. This failure traces back to the near-body flow this regime produces. At $Re=5000$, the vortices form and shed through a thin, sharply varying near-wall layer, visible in the closely spaced shear structures of \autoref{fig: RE5000_vortex_shedding}, and it is precisely these complex high-gradient near-body fluctuations that the autoencoder struggles to reconstruct. The more complex the near-body fluctuations, the larger this error, so the lift, which integrates them directly, is the coefficient that suffers most.
+
+\todo{finish on sunday say that this flow case the lift and drag fluctuations are too complex and present no clear shedding frequency for the latent dynamics to hold on to compounding with the sensitive decoder the resulting reconstructed forces are really far of from the reference. But the reference itself doesnt lend itself to being reconstructed easily due to its chaotic nature}
+
+
+% \todo{at this last paragraph, tie to the fact that the pipeline has learned the general fluctuations, which is why the performance of the time averaged quantities isnt half bad, but as the performance on the lift and drag forces showed, they can't be concluded to be decent results, kind off don't say it this harshly}
+
+% \todo{(maybe in discssion) say that this operating point shows the limits of the neural ode, but that it does also show the potential in acceleraton for the framework, be it that the dynamics it would learn would be more simple than they currently are (ie lower reynolds number)}
+
+% \todo{have all of this written BEFORE LUNCH, after lunch, fix discussion and conclusion and then read over it to fix spelling errors}
+
+The instantaneous reconstructions in \autoref{fig: RE5000_velocity_comp_test} show the same generalisation gap in physical space. The in-sample snapshot (\subref{fig: RE5000_velocity_comp_train}) retains the sharp shear-layer structure of the reference, whereas the held-out snapshot (\subref{fig: base_velocity_comp_right}) is visibly smoothed: the near-wake vortices lose definition and the thin separating layers blur out. This is the spatial signature of the loss gap in \autoref{fig: RE5000_loss}: the decoder reproduces the wake configurations it saw during training but regresses toward a smeared, lower-gradient field on states from the unseen window. Because the force coefficients are integrated from the decoded velocity, this near-body smoothing feeds directly into the loading, and it is the high-gradient near-wall layer, which the lift integrates most directly, that carries the amplitude and phase errors shown in \autoref{fig: RE5000_forces}.
+
+
+
+\begin{figure}[htp]
+  \centering
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \begin{tikzpicture}
+      \node[anchor=south west, inner sep=0] (img)
+        {\includegraphics[width=\linewidth]{figures/Results/RE5000/velocity_comp_train.png}};
+      \begin{scope}[x={(img.south east)}, y={(img.north west)}]
+        % --- column headers ---
+        \node[anchor=south] at (0.30, 0.95) {$\mathbf{u}$};
+        \node[anchor=south] at (0.70, 0.95) {$\hat{\mathbf{u}}$};
+        % --- row labels ---
+      \end{scope}
+    \end{tikzpicture}
+    \caption{In-sample snapshot}
+    \label{fig: RE5000_velocity_comp_train}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \begin{tikzpicture}
+      \node[anchor=south west, inner sep=0] (img)
+        {\includegraphics[width=\linewidth]{figures/Results/RE5000/velocity_comp_test.png}};
+      \begin{scope}[x={(img.south east)}, y={(img.north west)}]
+        \node[anchor=south] at (0.30, 0.95) {$\mathbf{u}$};
+        \node[anchor=south] at (0.70, 0.95) {$\hat{\mathbf{u}}$};
+      \end{scope}
+    \end{tikzpicture}
+    \caption{Held out snapshot}
+    \label{fig: base_velocity_comp_right}
+  \end{subfigure}
+  \caption{Instantaneous velocity reconstruction by the autoencoder at the $Re=5000$, $512^2$ operating point for (a)~an in-sample snapshot ($t^*=6.84$) and (b)~a held-out snapshot ($t^*=19.74$). Rows: streamwise $u$ (top), transverse $v$ (bottom); within each panel, left is the WaterLily reference $\mathbf{u}$, right the reconstruction $\hat{\mathbf{u}}=\psi_\theta(\varphi_\theta(\mathbf{u}))$. The held-out field is visibly smoothed, indicating poor generalisation beyond the training distribution.}  \label{fig: RE5000_velocity_comp_test}
+\end{figure}
+
+Compared to the instantaneous reconstruction, the time-averaged statistics in \autoref{tab: re5000_field} seem to paint a better picture; the corresponding mean-velocity and Reynolds-stress contour fields, with their reference and difference maps, are shown in \autoref{app: RE5000} in \autoref{fig: RE5000_meanflow} and \autoref{fig: RE5000_rst}. The mean velocity components and all three Reynolds-stress fields correlate with the reference at $\rho>0.96$, with mean absolute errors no larger than $0.023$, and the time-mean drag is held to within $2.6\%$ over the full window. The interpretation is that $\mathcal{P}$ has learnt the statistically converged structure of the wake, even where it cannot track the instantaneous field: averaging over many shedding states recovers the low-order statistics, while the high-gradient near-body fluctuations that set the instantaneous loading are too complex to be learnt by $\mathcal{P}$. This is why the mean quantities come out well while the forces do not. The hybrid-region errors of $8.5\%$ in $\langle C_D\rangle$ and $9.2\%$ in $C_L^\text{rms}$ (\autoref{tab: re5000_forces}) are the cost of that same near-body error, and they are the honest figures here, since the smaller full-window errors are diluted by the reference segments. The integrated force metrics at this operating point, therefore, cannot be interpreted as quantitatively reliable, even though the time-averaged behaviour holds up.
 
 \begin{table}[H]
     \centering
@@ -1354,213 +1458,67 @@ where the training wall time cost $T_\text{wall}^\text{h, training} = \SI{21.1}{
     \label{tab: re5000_accuracy}
 \end{table}
 
+All in all, the performance of $\mathcal{P}$ shows a split outcome at this operating point: the autoencoder reconstructs the wake states it has seen but smooths those drawn from the held-out window, so the instantaneous loading is unreliable when trying to predict outside of the training window; while the time-averaged velocity and Reynolds-stress fields remain faithful to the reference. The source of error at this operating point can not be blamed on the autoencoder alone, since the loading is only as good as the decoded velocity field, and that field is in turn only as good as the latent trajectory the Neural ODE supplies, so the reconstruction ceiling set here does not yet distinguish error baked in by the autoencoder from drift accumulated during the latent integration. 
+
+
+\subsubsection{Latent Dynamics}
+
+The latent dynamics inherit the underlying wake's chaos. \autoref{fig: RE5000_trajectories} shows that the reference latent components carry no clean periodicity: unlike \autoref{fig: Re250_latent_traj}, where each component traces a near-sinusoidal orbit at the shedding frequency, the $Re=5000$ trajectories are irregular in both amplitude and phase, with no simple frequency to which the components return. The chaos that hampered the instantaneous velocity reconstruction is therefore already present in the latent state $\mathbf{z}=\varphi_\theta(\mathbf{u})$ itself.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Results/RE5000/trajectories.pdf}
+    \caption{Converged multiple-shooting fit on the augmented trajectory set; markers denote shooting-segment boundaries.}
+    \label{fig: RE5000_retrain_node_ms}
+    \end{subfigure}
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/Results/RE5000/rollout_single_shooting.pdf}
+    \caption{Single rollout from $t^*=0$ across both windows after the second retraining, no segment resets.}
+    \label{fig: RE5000_retrain_node_singleshoot}
+    \end{subfigure}
+    \caption{Latent dynamics of $f_\phi$  of the $Re=5000$, $512^2$ operating point, four representative components shown over all time windows. Reference $z$ (solid) against prediction $\tilde{z}$ (dashed). (a) Converged multiple-shooting fit on the augmented trajectory set, with segment start/end markers; (b) unaided single rollout from $t^*=0$ over the same windows.}
+    \label{fig: RE5000_trajectories}
+\end{figure}
+
+Against this reference, $f_\phi$ recovers the latent dynamics reasonably well under multiple shooting but not during free rollout. In \autoref{fig: RE5000_retrain_node_ms}, the converged multiple-shooting fit tracks the reference closely within each shooting segment, but this good visual performance is mainly due to the multiple-shooting training: each segment is re-anchored to the reference latent state at its start (the segment markers). The single rollout from $t^*=0$ in \autoref{fig: RE5000_retrain_node_singleshoot} is the unflattering test, and there the prediction $\hat{\mathbf{z}}$ drifts away from the reference within a few windows. The single-shot rollouts track the learned frequencies to some extent but diverge at the end of each trajectory window. These unguarded rollouts show that $f_\phi$ has learnt the dynamics of the latent state, but due to the chaotic nature of the rollout, rollout drift can set in quickly. This is similar to the way the force rollout of \autoref{fig: RE5000_forces} also drifts to unknown states. The latent divergence and the force divergence are therefore connected behaviours.
+
+The chaotic nature of the latent dynamics is what loosens the KNN monitor. Because the latent trajectories never settle onto a tight orbit, the training set populates a broad, high-variance region of latent space, and the KNN gating threshold $\tau$ derived from it is correspondingly large; it also climbs across the retraining stages (\autoref{tab: re5000_rollout_summary}), from $\tau=0.614$ for the initial model to $0.898$ and $0.902$ after the first and second retrains, as each augmented training set widens the accepted region further.  A large $\tau$ is a lenient gate: a rollout must drift far before its score crosses the threshold and triggers a reset. 
+
+\begin{table}[htbp]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{0.85}
+  \begin{tabular}{clrrrcc}
+    \toprule
+    \# & NODE model & Steps & $\Delta t^*$ & $t^*_\text{r, end}$ & score & $\tau$ \\
+    \midrule
+    1 & initial      & 717  & 4.470  & 24.470 & 0.615 & 0.614 \\
+    2 & initial      & 1    & 0.811  & 25.281 & 0.855 & 0.614 \\
+    3 & initial      & 1035 & 6.502  & 31.783 & 0.615 & 0.614 \\
+    \midrule
+    4 & 1st retrain  & 2    & 10.021 & 41.804 & 0.899 & 0.898 \\
+    5 & 1st retrain  & 126  & 1.556  & 43.360 & 0.899 & 0.898 \\
+    6 & 1st retrain  & 1049 & 6.656  & 50.017 & 0.898 & 0.898 \\
+    \midrule
+    7 & 2nd retrain  & 1661 & 19.094 & 69.110 & 0.903 & 0.902 \\
+    8 & 2nd retrain  & 895  & 5.802  & 74.912 & 0.903 & 0.902 \\
+    9 & 2nd retrain  & 3329 & 19.130 & 94.042 & 0.904 & 0.902 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Per-rollout summary of the KNN-gated NODE inference at $Re = 5000$. Every accepted rollout terminates just above the active threshold $\tau$.}
+  \label{tab: re5000_rollout_summary}
+\end{table}
+
+The consequence is visible in the \texttt{Steps} and $\Delta t^*$ columns, where accepted rollouts are allowed to run for hundreds to thousands of integration steps, the longest covering $\Delta t^* \approx 19$ time units in a single uninterrupted rollout. This long rollout at the end of the simulation window is, however, not entirely erroneous, as \autoref{fig: RE5000_forces} shows; it still traces the reference, but it is significantly more diffuse than the reference, showing how the rollout matches one of the characteristic frequencies of the shedding regime, indicating that $f_\phi$ has managed to learn this specific flow behaviour. Which is exactly what \autoref{fig: RE5000_forces} also indicated with the matching, but diverging, unguarded rollouts
+
+The latent dynamics at the $Re=5000$, $512^2$ operating point expose a contradiction in the KNN gating strategy. The chaotic latent space sets $\tau$ from the spread of the training distribution, so the threshold scales with how disordered that distribution is. This means that a well-performing autoencoder that produces a clean, near-periodic wake yields a tight latent cluster, a small $\tau$, and a strict gate that resets often, thereby capping rollout length and limiting the achievable speedup, as in \autoref{subsect: 4_re250}. The chaotic $Re=5000$ wake does the opposite: its complex latent distribution inflates $\tau$, the gate turns lenient, and rollouts are allowed to run for thousands of steps, exactly the regime in which $f_\phi$ accumulates the most drift.  The monitor is therefore most permissive where the dynamics are hardest to predict and most restrictive where they are easiest to predict, which is the wrong way round. This is not a tuning error but a consequence of deriving the threshold from in-distribution variance: the harder the flow is to learn, the more freedom the gate hands the part of the pipeline least able to use it.
+
+
 %-------------------------------------------------------------------------------------------------------------
 
-\input{mainmatter/Appendix/C. Finer generalization (redacted)}
-
-% \subsection{Finer Simulation grid}
-% \label{subsect: 4_finer}
-% As established in \autoref{subsect: 4_wall_time}, the per-CTU advantage of the latent rollout is tied to the base-case resolution: since the WaterLily solver is memory-bound, its cost per CTU grows with the grid size~\cite{Weymouth2025}, whereas a single rollout of $\mathcal{P}$ is fixed by the latent dimension $N_z = 16$ and is independent of the grid. The $256^2$ baseline used throughout this work is therefore a comparatively cheap case in which to demonstrate the gain. To investigate the effects of the hybrid loop on more expensive simulations, the reference case is re-run on a refined $512^2$ grid, keeping the Reynolds number, domain, and cylinder geometry of \autoref{tab: parameters} fixed, so that only the spatial discretisation changes. The following paragraphs will quantify how grid refinement affects the cost per CTU of the reference solver and the resulting upper bound on the achievable acceleration, together with the resolved wake itself, since a finer grid captures the secondary vortex structures of the $Re=2500$ flow more sharply, as displayed in \autoref{fig: finer_vortex_shedding}, and shifts the integrated force statistics on which the hybrid loop is assessed.
-
-
-% \begin{figure}[htbp]
-%     \centering
-%     \begin{subfigure}[b]{0.19\textwidth}
-%         \includegraphics[width=\textwidth]{figures/Results/finer/contours/shedding_t0.1.png}
-%         \caption{$t^*_{n}$}
-%     \end{subfigure}
-%     \begin{subfigure}[b]{0.19\textwidth}
-%         \includegraphics[width=\textwidth]{figures/Results/finer/contours/shedding_t1.1.png}
-%         \caption{$t^*_{n+\Delta t}$}
-%     \end{subfigure}
-%     \begin{subfigure}[b]{0.19\textwidth}
-%         \includegraphics[width=\textwidth]{figures/Results/finer/contours/shedding_t2.1.png}
-%         \caption{$t^*_{n+ 2\Delta t}$}
-%     \end{subfigure}
-%     \begin{subfigure}[b]{0.19\textwidth}
-%         \includegraphics[width=\textwidth]{figures/Results/finer/contours/shedding_t3.1.png}
-%         \caption{$t^*_{n+ 3\Delta t}$}
-%     \end{subfigure}
-%     \begin{subfigure}[b]{0.19\textwidth}
-%         \includegraphics[width=\textwidth]{figures/Results/finer/contours/shedding_t4.2.png}
-%         \caption{$t^*_{n+ 4\Delta t}$}
-%     \end{subfigure}
-%     \caption{Instantaneous vorticity field $\nicefrac{\omega L}{U}$ of the finer ($512^2$) reference simulation at $Re=2500$, shown for five consecutive snapshots (left to right). Positive (red) and negative (blue) vorticity, the refined grid resolves the secondary (small-scale) structures in the wake more sharply than the $256^2$ baseline.}
-%     \label{fig: finer_vortex_shedding}
-% \end{figure}
-
-% \subsubsection{Wall-Time Performance}
-% \label{subsubsect: 4_finer_walltime}
-
-% Following the wall clock breakdown in \autoref{subsect: 4_wall_time}, the refined hybrid simulation is broken down into its segments, and their wall times are presented in \autoref{tab: wall_timing_hybrid_finer}. Just as in the base simulation, the initial autoencoder training consumes a very high fraction of $\mathcal{S} $'s total wall time, about $45\%$ of the total, and once the two retraining cycles are added, building and updating the networks accounts for close to $90\%$ of the $3768$~s pipeline. The CFD work, the initial data-gathering, and the two snapshot-gathering runs make up most of what remains, while the latent rollouts contribute less than $1\%$.
-
-% \begin{table}[htp]
-%     \centering
-%     \begin{tabular}{llrr}
-%         \toprule
-%         Phase & Component & Time (s) & \% of total \\
-%         \midrule
-%         initial data-gathering & -- & 190.80 & 5.06 \\
-%         \midrule
-%         \multirow{2}{*}{Train} & AE   & 1704.00 & 45.22 \\
-%                                & NODE &  222.00 &  5.89 \\
-%         \midrule
-%         \multirow{3}{*}{Hybrid section 1} & CFD + rollout & 1.673 & 0.04 \\
-%                                           & CFD + rollout & 4.057 & 0.11 \\
-%                                           & CFD + rollout & 4.183 & 0.11 \\
-%         \midrule
-%         \multirow{3}{*}{Retrain 1} & Gather snapshots &  95.40 &  2.53 \\
-%                                    & AE               & 462.00 & 12.26 \\
-%                                    & NODE             & 168.00 &  4.46 \\
-%         \midrule
-%         \multirow{3}{*}{Hybrid section 2} & CFD + rollout & 0.013 & 0.00 \\
-%                                           & CFD + rollout & 3.008 & 0.08 \\
-%                                           & CFD + rollout & 4.117 & 0.11 \\
-%         \midrule
-%         \multirow{3}{*}{Retrain 2} & Gather snapshots &  95.40 &  2.53 \\
-%                                    & AE               & 606.00 & 16.08 \\
-%                                    & NODE             & 204.00 &  5.41 \\
-%         \midrule
-%         Hybrid section 3 & CFD + rollout & 3.232 & 0.09 \\
-%         \midrule
-%         \textbf{Total} & & \textbf{3767.88} & \textbf{100.00} \\
-%         \bottomrule
-%     \end{tabular}
-%     \caption{Wall-clock breakdown of the hybrid simulation pipeline (finer $512^2$ run).}
-%     \label{tab: wall_timing_hybrid_finer}
-% \end{table}
-
-% As mentioned, the rollout cost barely changes with the grid. It is fixed by the latent dimension $N_z = 16$ and stays around $85$~ms/CTU, the same order as the base run, because it never touches the full field. The WaterLily time integrations, on the other hand, now cost $9540$~ms/CTU, against $866$~ms/CTU at $256^2$. This large cost difference between rollout and CFD is even more noticeable when inspecting the acceleration metrics, $S_\text{loop}$: 
-
-% \begin{align}
-%     S_\text{loop}
-%     &= \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot}}
-%     = \frac{954.84}{401.883} = 2.38
-% \end{align}
-
-% Showing that the hybrid loop uses the low-cost rollouts to its full effect, where it is able to achieve a $2.38$ speedup compared to the reference simulation. To assess the speedup of the hybrid loop compared to the training cost of the ML components of $\mathcal{P}$, the training wall time is added to the comparison in $S_\text{eff}$ with $T_\text{wall}^\text{h, training} = 3566$~s of training.
-
-% \begin{align}
-%     S_\text{eff}
-%     &= \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
-%     = \frac{954.84}{401.883 + 3366}
-%     = \frac{954.84}{3767.88} \approx 0.25
-% \end{align}
-
-% A single finer run is therefore still much slower than simply running $\mathcal{S}_\text{ref}$, because the training cost is not repaid within one simulation window. But it still performs better than the base case, which achieved an effective speedup of $0.073$, indicating that refining the grid begins to close part of the gap between the full pipeline and running the reference simulation. 
-
-% \subsubsection{Spatial and physical fidelity}
-% The finer simulation is passed to $\mathcal{P}$ without any architectural change: the architectures of $\varphi_\theta$, $\psi_\theta$ and $f_\phi$ of \autoref{sect: 4_base_hybrid} are reused as-is. The only change to the architecture is the input and output dimensions of the autoencoder, so that they can correctly pass the new, finer grid down to the latent space without dimension mismatches. An advantage of the refinement is that the decoder's
-% fixed cell-width smoothing now spans half the physical width, compared to the base architecture. This means that the thin separating shear layers that dominated the base-grid reconstruction error (\autoref{fig: base_velocity_comp}) are resolved by roughly twice as many cells and blurred less in physical space. Because the autoencoder can now capture fine dynamics to a much higher degree, the cost function converges much faster than before. 
-
-
-% \begin{figure}[htp]
-%     \centering
-%     \includegraphics[width=\linewidth]{figures/Results/finer/loss_evolution.png}
-%     \caption{Initial training history of the autoencoder at $512^2$. Left axis ($\mathcal{L}$, logarithmic): total loss on the train, validation and test splits with the divergence ($\nabla\!\cdot\mathbf{u}$) and vorticity ($\omega$) penalties on the test split. Right axis ($CC$): reconstruction correlation coefficients $CC_u,\,CC_v$ on train and test. Validation and test losses converge to $8.6\times10^{-3}$ and $1.2\times10^{-2}$.}
-%     \label{fig: finer_loss}
-% \end{figure}
-
-% \autoref{fig: finer_loss} shows the autoencoder converging to $\mathcal{L}\approx8.6\times10^{-3}$ on the validation split and $1.2\times10^{-2}$ on the held-out test window, against $1.5\times10^{-2}$ and $3.6\times10^{-2}$ at $256^2$ (\autoref{fig: initial_training_base}).The train, validation and test curves now collapse onto one another, whereas the base case retained a test-to-validation gap of roughly a factor of two; the finer grid therefore generalises across the full simulation window rather than overfitting the initial data-gathering horizon, and $CC_u,\,CC_v$ reach unity within the first epochs.
-
-% The rapid convergence of the autoencoder shows that a large part of the training budget is spent unnecessarily: the train, validation and test losses practically collapse onto each other well before the end of the run, so there is no need to train over such a long epoch window. Since the initial autoencoder training consumes almost half of the complete integrated-workflow budget, reducing the epoch count translates directly into a higher effective speedup. If the initial autoencoder were trained for only $100$ epochs, its training cost would drop to $20\%$ of its current value. Together with a shorter update window for the retraining runs, the complete training wall time would fall to $1148.4$~s while preserving the reconstruction accuracy, since the loss is already converged at $100$ epochs. This yields an effective speedup of
-
-% \begin{align}
-%     S_\text{eff}
-%     &= \frac{T_\text{wall}^\text{ref}}{T_\text{wall}^\text{h, tot} + T_\text{wall}^\text{h, training}}
-%     = \frac{954.84}{401.883 + 1148.4}
-%     = \frac{954.84}{1550.28} \approx 0.62
-% \end{align}
-
-% This value shows that trimming the autoencoder schedule alone lifts $S_\text{eff}$ from $0.06$ at the base resolution to $0.62$ here, an order-of-magnitude gain that moves the integrated workflow from roughly ten times slower than the reference to within a factor of two of break-even, without touching the inference loop itself. It demonstrates that the cost of the framework is dominated by one-off training rather than by the accelerated integration: the inference loop is already cheaper than the reference, and the finer the grid, the larger that margin becomes. A single from-scratch run does not yet break even, but closing the remaining gap no longer requires a faster rollout; it requires either better use of the trained $\mathcal{P}$ across runs or overlapping training with the live simulation, together with a less strict integration monitor and switching schedule to convert the available loop speedup into actual wall-time savings.
-
-% A faithful velocity reconstruction is a key setup for the hybrid loop to accurately reproduce the loading on the cylinder. Since the force coefficients on the cylinder are calculated from the decoded velocity $\hat{\mathbf{u}}$; a reconstruction that preserves the near-body velocity, together with the divergence and vorticity penalties, feeds a more accurate pressure projection and, in turn, a more accurate integrated force. This behaviour can be seen when the force coefficients are displayed over the simulation time window in \autoref{fig: finer_forces}.
-
-% \begin{figure}[htp]
-%     \centering
-%     \includegraphics[width=.9\linewidth]{figures/Results/finer/forces.png}
-%     \caption{Lift ($C_L$) and drag ($C_D$) coefficients over $t^*$ for the finer ($512^2$) run at $Re=2500$. The hybrid loop (dashed) tracks the reference (solid) closely as an effect of the greater autoencoder performance; retraining is triggered at $t^* \approx 34.7$ and $t^* \approx 47.5$}
-%     \label{fig: finer_forces}
-% \end{figure}
-
-% \autoref{fig: finer_forces} shows that the rollouts correctly track the reference $\langle C_D \rangle$ and retain the primary shedding frequency over both the hybrid windows and the complete simulation window, with the lift preserving the shedding frequency while its fluctuation amplitude decays slightly within each rollout. This physical agreement is quantified in \autoref{tab: finer_forces}: the time-averaged drag is reproduced to within $0.64\%$ in the hybrid regions, and the time-averaged fields of \autoref{tab: finer_field} correlate with the reference at $\rho \geq 0.9966$ across the mean flow and all three Reynolds-stress
-% components. The only quantity that carries a visible rollout error is the lift fluctuation: the peak-weighted $C_L^\text{rms}$ error rises from $2.36\%$
-% over the full window to $6.83\%$ when the average is restricted to the hybrid regions. 
-
-% \begin{table}[htp]
-%     \centering
-%     \footnotesize
-%     \begin{subtable}[t]{0.56\textwidth}
-%         \centering
-%         \setlength{\tabcolsep}{4pt}
-%         \begin{tabular}{@{}lrrrr@{}}
-%             \toprule
-%             Quantity & Ref. & Hybrid & $e_\text{abs}$ & $e_\text{rel}$ [\%] \\
-%             \midrule
-%             \multicolumn{5}{l}{\textit{Full window} ($t^*\in[0,100]$)} \\
-%             $\langle C_D \rangle$ & $-1.57894$ & $-1.58510$ & $0.00616$ & $0.390$ \\
-%             $C_L^\text{rms}$      & $1.17231$  & $1.14463$  & $0.02768$ & $2.361$ \\
-%             \midrule
-%             \multicolumn{5}{l}{\textit{Hybrid regions only}} \\
-%             $\langle C_D \rangle$ & $-1.57201$ & $-1.58206$ & $0.01006$ & $0.640$ \\
-%             $C_L^\text{rms}$      & $1.16576$  & $1.08611$  & $0.07965$ & $6.832$ \\
-%             \bottomrule
-%         \end{tabular}
-%         \caption{Integrated force coefficients: time-mean drag
-%         $\langle C_D \rangle$ and r.m.s.\ lift $C_L^\text{rms}$ against the
-%         reference, with absolute and relative errors.}
-%         \label{tab: finer_forces}
-%     \end{subtable}
-%     \hfill
-%     \begin{subtable}[t]{0.40\textwidth}
-%         \centering
-%         \setlength{\tabcolsep}{5pt}
-%         \begin{tabular}{@{}lrr@{}}
-%             \toprule
-%             Quantity & $\varepsilon$ (MAE) & $\rho$ \\
-%             \midrule
-%             \multicolumn{3}{l}{\textit{Mean flow}} \\
-%             $\langle u \rangle$    & $0.004$ & $0.9989$ \\
-%             $\langle v \rangle$    & $0.004$ & $0.9970$ \\
-%             \midrule
-%             \multicolumn{3}{l}{\textit{Reynolds stresses}} \\
-%             $\langle u'u' \rangle$ & $0.002$ & $0.9976$ \\
-%             $\langle v'v' \rangle$ & $0.003$ & $0.9996$ \\
-%             $\langle u'v' \rangle$ & $0.001$ & $0.9966$ \\
-%             \bottomrule
-%         \end{tabular}
-%         \caption{Time-averaged field statistics over $\Omega$: mean absolute
-%         error $\varepsilon$ and spatial correlation $\rho$.}
-%         \label{tab: finer_field}
-%     \end{subtable}
-%     \caption{Hybrid-loop accuracy at the finer $512^2$ resolution.
-%     (a) integrated loading; (b) mean-flow and Reynolds-stress fields.}
-%     \label{tab: finer_accuracy}
-% \end{table}
-
-% \subsubsection{Latent dynamics}
-% \autoref{fig: finer_trajectories} shows the latent dynamics of $f_\phi$ at the finer resolution. The converged multiple-shooting fit (\autoref{fig: finer_retrain_node_ms}) reproduces all four representative components across the time windows, with $\tilde{z}$ overlaying the reference $z$ continuously through the shooting-segment boundaries of the earlier windows. The last plot of the training trajectories does show discontinuities at the segment boundaries. This mirrors the retraining imbalance identified for the base case (\autoref{subsect: 4_baseline}): since the newly augmented snapshots form a minority of the training set, so the multiple-shooting loss stays dominated by the older, well-represented dynamics and $f_\phi$ fits the newest state only weakly. 
-
-
-% \begin{figure}[htbp]
-%     \centering
-%     \begin{subfigure}[t]{0.48\textwidth}
-%         \centering
-%         \includegraphics[width=\linewidth]{figures/Results/finer/trajectories.pdf}
-%     \caption{Converged multiple-shooting fit on the augmented trajectory set; markers denote shooting-segment boundaries.}
-%     \label{fig: finer_retrain_node_ms}
-%     \end{subfigure}
-%     \begin{subfigure}[t]{0.48\textwidth}
-%         \centering
-%         \includegraphics[width=\linewidth]{figures/Results/finer/rollout_single_shooting.pdf}
-%     \caption{Single rollout from $t^*=0$ across both windows after the first retraining, no segment resets.}
-%     \label{fig: finer_retrain_node_singleshoot}
-%     \end{subfigure}
-%     \caption{Latent dynamics of $f_\phi$ at finer grid resolution $512^2$, four representative components shown over all time windows. Reference $z$ (solid) against prediction $\tilde{z}$ (dashed). (a) Converged multiple-shooting fit on the augmented trajectory set, with segment start/end markers; (b) unaided single rollout from $t^*=0$ over the same windows.}
-%     \label{fig: finer_trajectories}
-% \end{figure}
-
-% The latent components produced by the highly accurate $\varphi_\theta$ are smooth and low in amplitude variance, showing a compact, near-periodic orbit in latent space rather than a broadly scattered cloud. Parallel to the low Re hybrid simulation discussed in \autoref{subsect: 4_re250}, this compact spread of latent vectors tightens the KNN monitor threshold $\tau$. Since the tightly clustered latent space yields small in-distribution scores and hence a small absolute $\tau$. Any divergent predictions of $\tilde{z}$ get flagged as OOD quickly and control is handed back to WaterLily, which is what caps the rollout length and forces the speedup at this resolution to come from the training budget (\autoref{subsect: 4_finer_walltime}) rather than from longer rollouts. 
-
-% The finer $512^2$ grid shows that the hybrid framework is transferable to a higher resolution without modification: the autoencoder reconstructs the velocity field more accurately and converges in a fraction of the epoch budget, the integrated drag and time-averaged fields remain near to the reference simulation, and the larger reference cost combined with the trimmable training schedule lifts the projected effective speedup by an order of magnitude over the base case. These results are promising but not complete. The $S_\text{eff}$ estimate rests on a single measured run and on the assumption that the turbulent statistics remain converged at the reduced epoch count, and the rollout length is still capped by the tight integration monitor. A dedicated study at finer resolution, covering the epoch--statistics trade-off, a measured rather than projected wall-time breakdown, and a less conservative gating schedule, could prove to be an interesting way to determine the true performance of this framework. 
+% \input{mainmatter/Appendix/C. Finer generalization (redacted)}
 
