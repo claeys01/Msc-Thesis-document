@@ -782,7 +782,7 @@ The OOD detection effectively returns the distance $k$-th nearest training neigh
 
 Using the KNN score from \autoref{sect: KNN}to decide, at every prediction attempt, whether the latent rollout produced by $f_\phi$ can still be trusted or whether the conventional WaterLily solver should resume time integration. Whenever $d_k(\tilde{\mathbf{z}}^{(n)}) \geq \tau$, the predicted latent state is discarded and the CFD solver advances the flow field $\mathbf{u}$ from its last accepted state to stabilise the hybrid simulation again. The KNN-OOD is also used to assess whether the newly encoded data from the encoder are similar to the samples in the latent trajectories used during training, thereby serving as a monitor of autoencoder accuracy. A pseudocode example of the implemented fallback strategy is displayed in \autoref{alg: predict_flex} below. 
 
-\begin{algorithm}[H]
+\begin{algorithm}[htbp]
 \SetAlgoLined
 \DontPrintSemicolon
 \caption{KNN-OOD-gated latent rollout (\texttt{predict\_flex})}
@@ -1047,8 +1047,6 @@ The autoencoder retraining inherits the methodology of the preliminary training,
 \subsubsection{Neural ODE retraining}
 Before the neural ODE can be retrained, the augmented trajectory $\boldsymbol{\mathcal{T}}^{(r+1)}_u$ needs to be re-encoded with the updated autoencoder. Since the encoder weights have changed, $\theta^{(r+1)} \neq \theta^{(r)}$, the latent trajectory used for the previous fit no longer match the space the encoder now produces, so a new set $\boldsymbol{\mathcal{T}}_z^{(r+1)} = \varphi_\theta^{(r+1)}(\boldsymbol{\mathcal{T}}_u^{(r+1)})$ is generated.
 
-The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the same multiple-shooting loss~\eqref{eq: node_loss_ms} used before. The difference is that the set now holds $N_T + 1$ trajectories instead of $N_T$, so the average $\langle \cdot \rangle$ in \eqref{eq: node_loss_ms} runs over the original trajectories and the newly added one together. A visual representation of the new fitted trajectories is displayed in \autoref{fig: ms_retrain_epochs}
-
 \begin{figure}[htbp]
     \centering
     \begin{subfigure}[t]{0.48\textwidth}
@@ -1065,7 +1063,7 @@ The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the sam
     \label{fig: ms_retrain_epoch20}
     \end{subfigure}
 
-    \vspace{0.8em}
+    % \vspace{0.8em}
 
     \begin{subfigure}[t]{0.48\textwidth}
         \centering
@@ -1083,6 +1081,8 @@ The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the sam
     \caption{Evolution of the multiple-shooting trajectories during neural ODE retraining, shown for four latent components. The reference $z_\mathrm{ref}$ (solid) is compared to the prediction $\tilde{z}_\mathrm{pred}$ (dashed) at four training stages matching the full order trajectories in \ref{fig: augmented_forces}}
     \label{fig: ms_retrain_epochs}
 \end{figure}
+
+The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the same multiple-shooting loss~\eqref{eq: node_loss_ms} used before. The difference is that the set now holds $N_T + 1$ trajectories instead of $N_T$, so the average $\langle \cdot \rangle$ in \eqref{eq: node_loss_ms} runs over the original trajectories and the newly added one together. A visual representation of the new fitted trajectories is displayed in \autoref{fig: ms_retrain_epochs}
 
 Contrasting the initial multiple shooting training in \autoref{fig: ms_epochs}, where the
 The network starts from a random state, and the epoch-0 prediction is nearly flat. Here, the inherited network $f_\phi^{(r)}$ already tracks the first chunk closely at epoch 0, since that part of the latent dynamics was learned during the previous fit. Looking at the second trajectory, the figure also shows that $f_\phi$ already fits the unseen trajectory fairly well, since the initial shooting gaps are not very large. This means the training schedule can be shortened because the network begins near a good solution. 
