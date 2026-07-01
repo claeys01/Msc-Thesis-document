@@ -7,7 +7,7 @@ This chapter describes the full methodology used to develop and evaluate the mac
 \section{Framework Overview}
 \label{sect: Framework Overview}
 
-The framework developed in this thesis replaces the time integration of the discretised Navier--Stokes equations \eqref{eq: WaterLilyMomentum} with that of a low-dimensional latent state of said equations. Profiling of the solver loop of the WaterLily simulation environment showed that the pressure projection and convection--diffusion routines are the most costly steps in the loop, and both scale with the total number of degrees of freedom $N_x N_y N_u$ \cite{Weymouth2025}. Across the three test cases reported (a Taylor--Green vortex, a sphere, and a moving cylinder), the pressure-Poisson projection accounts for roughly half of the per-step cost ($46$--$57\%$) and the convection--diffusion routine for a further $22$--$31\%$, so the two routines together dominate the time-stepping loop. Compressing the flow state to a latent vector of dimension $N_z \ll N_x N_y N_u$ and integrating it in time with a learned ODE offers a direct route to acceleration, provided that the latent state captures the relevant dynamics and that the surrogate model is used during regimes where it can be trusted. Figure~\ref{fig: framework_overview} shows the ML pipeline, referred to as $\mathcal{P}$ in this work, that is developed in this work. 
+The framework developed in this thesis replaces the time integration of the discretised Navier--Stokes equations \eqref{eq: WaterLilyMomentum} with that of a low-dimensional latent state of said equations. Profiling of the solver loop of the WaterLily simulation environment showed that the pressure projection and convection--diffusion routines are the most costly steps in the loop, and both scale with the total number of degrees of freedom $N_x N_y N_u$ \cite{Weymouth2025}. Across the three test cases reported (a Taylor--Green vortex, a sphere, and a moving cylinder), the pressure-Poisson projection accounts for roughly half of the per-step cost ($46$--$57\%$) and the convection--diffusion routine for a further $22$--$31\%$, so the two routines together dominate the time-stepping loop. Compressing the flow state to a latent vector of dimension $N_z \ll N_x N_y N_u$ and integrating it in time with a learned ODE offers a direct route to acceleration, provided that the latent state captures the relevant dynamics and that the surrogate model is used during regimes where it can be trusted. \autoref{fig: framework_overview} shows the ML pipeline, referred to as $\mathcal{P}$, that is developed in this thesis. 
 
 \begin{figure}[H]
     \centering
@@ -301,7 +301,7 @@ Although the body is stationary in the cases considered in this work, with $\bol
 \subsection{Normalization}
 \label{sect: normalization}
 
-The two velocity channels do not share a common scale: at $Re=2500$ the streamwise component $u$ fluctuates around the freestream value $U$, where the $v$ oscillates about zero. Passing these raw fields to the encoder would allow the larger-magnitude streamwise channel to dominate the training loss, biasing the latent representation towards the mean flow at the expense of dynamically relevant fluctuations. To assess both components equally during training, each velocity component is standardised with a per-component z-score transform. For each velocity component $i$:
+The two velocity channels do not share a common scale: at $Re=2500$ the streamwise component $u$ fluctuates around the freestream value $U$, whereas $v$ oscillates about zero. Passing these raw fields to the encoder would allow the larger-magnitude streamwise channel to dominate the training loss, biasing the latent representation towards the mean flow at the expense of dynamically relevant fluctuations. To assess both components equally during training, each velocity component is standardised with a per-component z-score transform. For each velocity component $i$:
 
 \begin{equation}\label{eq: zscore}
     \tilde{u}_i = \frac{u_i - \mu_i}{\sigma_i + \epsilon},
@@ -323,7 +323,7 @@ This way, the encoder and decoder operate entirely in a standardised space. The 
 
 To harness the Neural ODE's predictive capabilities, we need a way to reduce the dimensionality of our dynamical system. This is the role the autoencoder encompasses: it provides a way to produce a compact, non-linear representation of the instantaneous flow state on which the latent dynamics can subsequently be learned. A convolutional autoencoder is well-suited to this task, as its filters are designed to extract local spatial features from grid-structured fields, and the use of non-linear activation functions allows it to represent flow states on a curved, low-dimensional manifold. 
 
-The autoencoder learns an efficient reduced-order representation of the instantaneous full-order flow state. The AE consists of two parts, namely an encoder and a decoder. The encoder $\varphi_\theta: \mathbb{R}^{N_x \times N_y \times C_{in}} \to \mathbb{R}^{N_z}$, maps the instantaneous full-order augmented input to a latent state vector $\mathbf{z} = \varphi_\theta(\mathbf{x}_\text{in})$, with small dimensions such that $N_z \ll N_x N_y C_\text{in}$. The decoder $\psi_\theta : \mathbb{R}^z \to \mathbb{R}^{N_x \times N_y \times N_u}$ then maps this latent state vector back to physical space $\hat{\mathbf{u}} = \psi_\theta(\mathbf{z})$ with the following goal.
+The autoencoder learns an efficient reduced-order representation of the instantaneous full-order flow state. The AE consists of two parts, namely an encoder and a decoder. The encoder $\varphi_\theta: \mathbb{R}^{N_x \times N_y \times C_{in}} \to \mathbb{R}^{N_z}$, maps the instantaneous full-order augmented input to a latent state vector $\mathbf{z} = \varphi_\theta(\mathbf{x}_\text{in})$, with small dimensions such that $N_z \ll N_x N_y C_\text{in}$. The decoder $\psi_\theta : \mathbb{R}^{N_z} \to \mathbb{R}^{N_x \times N_y \times N_u}$ then maps this latent state vector back to physical space $\hat{\mathbf{u}} = \psi_\theta(\mathbf{z})$ with the following goal.
 
 
 \begin{equation}\label{eq: AE_goal}
@@ -336,7 +336,7 @@ The autoencoder learns an efficient reduced-order representation of the instanta
 \subsection{Architecture}
 \label{sect: AEarch}
 
-The encoder and decoder are constructed parametrically from a small set of hyperparameters: the number of convolutional blocks $n_\text{conv}$, the number of dense layers $n_\text{dense}$, the base channel count $C_\text{base}$, the convolution kernel size $k$, the pooling kernel size $p$, and the latent dimension $N_z$. Which are all summarised in \autoref{tab: ae_hyperparameters}.
+The encoder and decoder are constructed parametrically from a small set of hyperparameters: the number of convolutional blocks $n_\text{conv}$, the number of dense layers $n_\text{dense}$, the base channel count $C_\text{base}$, the convolution kernel size $k$, the pooling kernel size $p$, and the latent dimension $N_z$, all of which are summarised in \autoref{tab: ae_hyperparameters}.
 
 \begin{table}[H]
     \centering
@@ -426,7 +426,7 @@ The latter half of the dense bottleneck mirrors the first half, projecting $\mat
 
 \subsubsection{Decoder}
 
-The decoder $\psi_\theta$ reverses the operation done by the encoder by passing the feature map at the end of the dense bottleneck and passing it through $n_\text{conv}$ decompression blocks, each of which consists of a bilinear upsampling by a factor of $p$, a 2D convolution with kernel size $k$ and stride $s$, and a GELU activation. 
+The decoder $\psi_\theta$ reverses the operation done by the encoder, taking the feature map at the end of the dense bottleneck and passing it through $n_\text{conv}$ decompression blocks, each of which consists of a bilinear upsampling by a factor of $p$, a 2D convolution with kernel size $k$ and stride $s$, and a GELU activation. 
 
 \begin{figure}[htbp]
     \centering
@@ -479,7 +479,7 @@ The decoder $\psi_\theta$ reverses the operation done by the encoder by passing 
     \label{fig: activations}
 \end{figure}
 
-The upsampling step reverses the spatial compression introduced by the encoder's pooling operation, aiming to restore the latent vector to its full physical dimensions. The subsequent convolution learns a smooth refinement of the upsampled feature map. In contrast to the encoder's ReLU activation function, the decoder uses GELU activation because the reconstructed velocity field contains both positive and negative values, and ReLU's hard zero clipping would restrict the reconstruction of the negative-velocity regions of the wake. Where GELU allows the decompression blocks to produce negative variables, such that periodic flow features can be properly reconstructed, \autoref{fig: activations} shows a graphic comparison of these two activation functions. 
+The upsampling step reverses the spatial compression introduced by the encoder's pooling operation, aiming to restore the latent vector to its full physical dimensions. The subsequent convolution learns a smooth refinement of the upsampled feature map. In contrast to the encoder's ReLU activation function, the decoder uses GELU activation because the reconstructed velocity field contains both positive and negative values, and ReLU's hard zero clipping would restrict the reconstruction of the negative-velocity regions of the wake. GELU, by contrast, allows the decompression blocks to produce negative values, so that periodic flow features can be properly reconstructed. \autoref{fig: activations} shows a graphical comparison of these two activation functions. 
 
 \begin{align}
     C_i &= C_\text{base}\, 2^{\,n_\text{conv}-i}, & i &= 1, \dots, n_\text{conv},
@@ -488,7 +488,7 @@ The upsampling step reverses the spatial compression introduced by the encoder's
     \label{eq: ae_dec_spatial}
 \end{align}
 
-In the decoder, the decompression blocks halve the channel count while doubling the spatial dimension in a manner symmetrical to the encoders' compression path, as shown in \autoref{eq: ae_dec_channels} \& \ref{eq: ae_dec_spatial}. The final decompression block is followed by two additional convolutional operations, seen on the right in \autoref{fig: decoder}. The first of these applies a $k \times k$ convolution that maps the last decoder channel count, which is the same as the input channel count in the encoder $C_\text{in}$, to $N_u$, so that they match the dimensions of the target velocity field. The second layer applies another $k \times k$ convolution with $N_u \to N_u$ channels and serves as a learned smoothing layer that suppresses checkerboarding artefacts produced by repeated bilinear upsampling. Both of these last layers have linear activation functions, so the reconstructed velocity field is a linear combination of the last feature map. 
+In the decoder, the decompression blocks halve the channel count while doubling the spatial dimension in a manner symmetrical to the encoder's compression path, as shown in \autoref{eq: ae_dec_channels} \& \ref{eq: ae_dec_spatial}. The final decompression block is followed by two additional convolutional operations, seen on the right in \autoref{fig: decoder}. The first of these applies a $k \times k$ convolution that maps the last decoder channel count, which is the same as the input channel count in the encoder $C_\text{in}$, to $N_u$, so that they match the dimensions of the target velocity field. The second layer applies another $k \times k$ convolution with $N_u \to N_u$ channels and serves as a learned smoothing layer that suppresses checkerboarding artefacts produced by repeated bilinear upsampling. Both of these last layers have linear activation functions, so the reconstructed velocity field is a linear combination of the last feature map. 
 
 
 \begin{figure}[H]
@@ -508,7 +508,7 @@ Batch normalisation is not included in the decoder, because the goal of the deco
 
 \subsection{Loss Function}
 \label{sect: AEloss}
-Following the physics-informed surrogate models introduced in \autoref{subsect: data driven ROMS}, the autoencoder in this work is trained by minimising a composite loss function \ref{eq: AE_loss} that combines a reconstruction accuracy term with two physics-based regularisers derived from the physical and numerical properties of the simulation we are aiming to enhance. 
+Following the physics-informed surrogate models introduced in \autoref{subsect: data driven ROMS}, the autoencoder in this work is trained by minimising a composite loss function~\eqref{eq: AE_loss} that combines a reconstruction accuracy term with two physics-based regularisers derived from the physical and numerical properties of the simulation we are aiming to enhance. 
 
 \begin{equation}\label{eq: AE_loss}
     \mathcal{L}_\text{AE} 
@@ -517,7 +517,7 @@ Following the physics-informed surrogate models introduced in \autoref{subsect: 
     + \lambda_\text{curl}\,\mathcal{L}_\text{curl}
 \end{equation}
 
-The reconstruction loss $\mathcal{L}_\text{AE}$ measures the pointwise accuracy of the encoded and decoded velocity field against the reference field $\mathbf{u}$ produced by WaterLily.
+The reconstruction loss $\mathcal{L}_\text{rec}$ measures the pointwise accuracy of the encoded and decoded velocity field against the reference field $\mathbf{u}$ produced by WaterLily.
 
 \begin{equation}\label{eq: rec_loss}
     \mathcal{L}_\text{rec}
@@ -765,7 +765,7 @@ The $\ell_2$-normalisation in the KNN OOD algorithm ensures a uniform rescaling 
 
 % \todo{say that the latent training data gets projected on the n dimensional hypersphere}
 
-The OOD detection effectively returns the distance $k$-th nearest training neighbour $d_k(\tilde{\mathbf{z}}^{(n)})$, and still needs to be compared to a preset threshold $\tau$ to be able to determine if the neural ODE integration is still in similar to the data it was trained on. This threshold $\tau$ is calibrated from said training distribution. When constructing the KD tree, the score $d_k$ is evaluated for every training snapshot against its own neighbours (excluding itself, because this is a trivial self-match at distance zero), producing a distribution of in-distribution scores. The threshold can then be set as the $q$-quantile of this distribution, with $q = 0.99$ as the default. If required, the user can set the threshold as $q \geq 1$ the implementation interprets the value as a safety margin above the worst training score, $\tau = q \cdot \max_i d_k(\mathbf{z}_i^{(n)})$, which is occasionally useful when calibration on a small or noisy training set would otherwise produce an overly tight threshold.
+The OOD detection effectively returns the distance $k$-th nearest training neighbour $d_k(\tilde{\mathbf{z}}^{(n)})$, and still needs to be compared to a preset threshold $\tau$ to be able to determine whether the neural ODE integration is still similar to the data it was trained on. This threshold $\tau$ is calibrated from said training distribution. When constructing the KD tree, the score $d_k$ is evaluated for every training snapshot against its own neighbours (excluding itself, because this is a trivial self-match at distance zero), producing a distribution of in-distribution scores. The threshold can then be set as the $q$-quantile of this distribution, with $q = 0.99$ as the default. If required, the user can set $q \geq 1$, in which case the implementation interprets the value as a safety margin above the worst training score, $\tau = q \cdot \max_i d_k(\mathbf{z}_i^{(n)})$, which is occasionally useful when calibration on a small or noisy training set would otherwise produce an overly tight threshold.
 
 \begin{figure}[H]
     \centering
@@ -780,7 +780,7 @@ The OOD detection effectively returns the distance $k$-th nearest training neigh
 \subsection{Fallback Strategy}
 \label{sect: fallback}
 
-Using the KNN score from \autoref{sect: KNN}to decide, at every prediction attempt, whether the latent rollout produced by $f_\phi$ can still be trusted or whether the conventional WaterLily solver should resume time integration. Whenever $d_k(\tilde{\mathbf{z}}^{(n)}) \geq \tau$, the predicted latent state is discarded and the CFD solver advances the flow field $\mathbf{u}$ from its last accepted state to stabilise the hybrid simulation again. The KNN-OOD is also used to assess whether the newly encoded data from the encoder are similar to the samples in the latent trajectories used during training, thereby serving as a monitor of autoencoder accuracy. A pseudocode example of the implemented fallback strategy is displayed in \autoref{alg: predict_flex} below. 
+The KNN score from \autoref{sect: KNN} is used to decide, at every prediction attempt, whether the latent rollout produced by $f_\phi$ can still be trusted or whether the conventional WaterLily solver should resume time integration. Whenever $d_k(\tilde{\mathbf{z}}^{(n)}) \geq \tau$, the predicted latent state is discarded and the CFD solver advances the flow field $\mathbf{u}$ from its last accepted state to stabilise the hybrid simulation again. The KNN-OOD is also used to assess whether the newly encoded data from the encoder are similar to the samples in the latent trajectories used during training, thereby serving as a monitor of autoencoder accuracy. A pseudocode example of the implemented fallback strategy is displayed in \autoref{alg: predict_flex} below. 
 
 \begin{algorithm}[htbp]
 \SetAlgoLined
@@ -1078,14 +1078,13 @@ Before the neural ODE can be retrained, the augmented trajectory $\boldsymbol{\m
     \caption{Epoch 250}        
     \label{fig: ms_retrain_epoch250}
     \end{subfigure}
-    \caption{Evolution of the multiple-shooting trajectories during neural ODE retraining, shown for four latent components. The reference $z_\mathrm{ref}$ (solid) is compared to the prediction $\tilde{z}_\mathrm{pred}$ (dashed) at four training stages matching the full order trajectories in \ref{fig: augmented_forces}}
+    \caption{Evolution of the multiple-shooting trajectories during neural ODE retraining, shown for four latent components. The reference $z_\mathrm{ref}$ (solid) is compared to the prediction $\tilde{z}_\mathrm{pred}$ (dashed) at four training stages, matching the full-order trajectories in \autoref{fig: augmented_forces}}
     \label{fig: ms_retrain_epochs}
 \end{figure}
 
-The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the same multiple-shooting loss~\eqref{eq: node_loss_ms} used before. The difference is that the set now holds $N_T + 1$ trajectories instead of $N_T$, so the average $\langle \cdot \rangle$ in \eqref{eq: node_loss_ms} runs over the original trajectories and the newly added one together. A visual representation of the new fitted trajectories is displayed in \autoref{fig: ms_retrain_epochs}
+The neural ODE is then retrained from the checkpoint $f_\phi^{(r)}$ with the same multiple-shooting loss~\eqref{eq: node_loss_ms} used before. The difference is that the set now holds $N_T + 1$ trajectories instead of $N_T$, so the average $\langle \cdot \rangle$ in \eqref{eq: node_loss_ms} runs over the original trajectories and the newly added one together. A visual representation of the new fitted trajectories is displayed in \autoref{fig: ms_retrain_epochs}.
 
-Contrasting the initial multiple shooting training in \autoref{fig: ms_epochs}, where the
-The network starts from a random state, and the epoch-0 prediction is nearly flat. Here, the inherited network $f_\phi^{(r)}$ already tracks the first chunk closely at epoch 0, since that part of the latent dynamics was learned during the previous fit. Looking at the second trajectory, the figure also shows that $f_\phi$ already fits the unseen trajectory fairly well, since the initial shooting gaps are not very large. This means the training schedule can be shortened because the network begins near a good solution. 
+Contrasting the initial multiple shooting training in \autoref{fig: ms_epochs}, where the network starts from a random state, and the epoch-0 prediction is nearly flat. Here, the inherited network $f_\phi^{(r)}$ already tracks the first chunk closely at epoch 0, since that part of the latent dynamics was learned during the previous fit. Looking at the second trajectory, the figure also shows that $f_\phi$ already fits the unseen trajectory fairly well, since the initial shooting gaps are not very large. This means the training schedule can be shortened because the network begins near a good solution. 
 
 Following the logic in \autoref{fig: retrain_serial}, after the neural ODE has been trained, the KNN integration monitor can be reconfigured using the new augmented trajectory $\boldsymbol{\mathcal{T}_u}$ in the same fashion as was displayed in \ref{alg: ood_knn}. After having finished this, the updated pipeline can be reassembled using the updated autoencoder ($\varphi_\theta^{(r+1)}$, $\psi_\theta^{(r+1)}$) and latent dynamics $f_\phi^{(r+1)}$. 
 
